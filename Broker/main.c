@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <ifaddrs.h>
 #include <errno.h>
 
 #define PORT 1883
@@ -58,6 +59,9 @@ int main() {
         perror("bind failed");
         exit(EXIT_FAILURE);
     }
+
+    // Dar print do IP
+    print_local_ip();
 
     // Escuta por conexões
     if (listen(server_socket, 3) < 0) {
@@ -135,8 +139,8 @@ void process_publish(const char *message) {
 
 void distribute_message(const char *topic, const char *message) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (is_subscribed(topics.client_sockets[i], topic)) {
-            send(topics.client_sockets[i], message, strlen(message), 0);
+        if (is_subscribed(topics->client_sockets[i], topic)) {
+            send(topics->client_sockets[i], message, strlen(message), 0);
         }
     }
 }
@@ -160,9 +164,33 @@ void process_subscribe(int client_socket, const char *message) {
 void add_subscription(int client_socket, const char *topic) {
     // Adicionar lógica para armazenar a assinatura
     // Pode ser uma lista ou um mapa de tópicos para clientes
+    printf("add_subscription function");
 }
 
 int is_subscribed(int client_socket, const char *topic) {
     // Verificar se o cliente está inscrito no tópico
     // Retornar 1 se estiver inscrito, 0 caso contrário
+    printf("is_subscribed function");
+}
+
+
+void print_local_ip() {
+    struct ifaddrs *ifaddr;
+    if (getifaddrs(&ifaddr) == -1) {
+        perror("getifaddrs");
+        return;
+    }
+
+    for (struct ifaddrs *ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr && ifa->ifa_addr->sa_family == AF_INET) {
+            char ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr, ip, INET_ADDRSTRLEN);
+            if (strcmp(ip, "127.0.0.1") != 0) {
+                printf("Server is running at IP: %s || Port: %d\n", ip, PORT);
+                break;
+            }
+        }
+    }
+
+    freeifaddrs(ifaddr);
 }
