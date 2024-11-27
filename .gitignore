@@ -1,3 +1,5 @@
 .vscode
 *.o
 Node/paho.mqtt.c/
+/Node/mqtt_node
+/Broker/mqtt_broker
