@@ -3,75 +3,106 @@
 #include <string.h>
 #include "MQTTClient.h"
 
-#define ADDRESS     "adress do broker"  // Replace with your broker
-#define CLIENTID    "MeterIDaquidepois"
-#define TOPIC_SUB   "topic1"   // Topic to subscribe to
-#define TOPIC_PUB   "topic2"   // Topic to publish to
-#define QOS         1          // Quality of Service level
-#define TIMEOUT     10000L     // Timeout in milliseconds(long)
+#include <unistd.h>
 
-volatile int keepRunning = 1; // Flag to control the main loop
+#define ADDRESS     "tcp://10.227.156.72:1883"
+#define CLIENTID    "7"
+#define TOPIC       "Test"
+#define PAYLOAD     "Hello World"
+#define QOS         1
+#define TIMEOUT     10000L
 
-// Callback for incoming messages
-int messageArrivedCallback(void* context, char* topicName, int topicLen, MQTTClient_message* message) {
-    printf("Message received on topic '%s': %s\n", topicName, (char*)message->payload);
+MQTTClient_deliveryToken deliveredtoken;
 
-    // Example: Publish a message to TOPIC_PUB when a specific condition is met
-    if (strcmp((char*)message->payload, "trigger_publish") == 0) {
-        MQTTClient* client = (MQTTClient*)context;
-        const char* payload = "Message published to topic2!";
-        MQTTClient_message pubMessage = MQTTClient_message_initializer;
-        MQTTClient_deliveryToken token;
-
-        pubMessage.payload = (char*)payload;
-        pubMessage.payloadlen = strlen(payload);
-        pubMessage.qos = QOS;
-        pubMessage.retained = 0;
-
-        MQTTClient_publishMessage(*client, TOPIC_PUB, &pubMessage, &token);
-        printf("Published message to topic '%s': %s\n", TOPIC_PUB, payload);
-    }
-
-    MQTTClient_freeMessage(&message);
-    MQTTClient_free(topicName);
-
-    return 1; // Return 1 to indicate successful processing
+void delivered(void *context, MQTTClient_deliveryToken dt)
+{
+    printf("Message with token value %d delivery confirmed\n", dt);
+    deliveredtoken = dt;
 }
 
-int main(int argc, char* argv[]) {
-    MQTTClient client;
-    MQTTClient_create(&client, ADDRESS, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL);
+int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *message)
+{
+    printf("Message arrived\n");
+    printf("     topic: %s\n", topicName);
+    printf("   message: %.*s\n", message->payloadlen, (char*)message->payload);
+    MQTTClient_freeMessage(&message);
+    MQTTClient_free(topicName);
+    return 1;
+}
 
-    // Set up connection options
+void connlost(void *context, char *cause)
+{
+    printf("\nConnection lost\n");
+    if (cause)
+    	printf("     cause: %s\n", cause);
+}
+
+int main(int argc, char* argv[])
+{
+    MQTTClient client;
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
+    MQTTClient_message pubmsg = MQTTClient_message_initializer;
+    MQTTClient_deliveryToken token;
+    int rc;
+
+    if ((rc = MQTTClient_create(&client, ADDRESS, CLIENTID,
+        MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS)
+    {
+        printf("Failed to create client, return code %d\n", rc);
+        rc = EXIT_FAILURE;
+        goto exit;
+    }
+
+    if ((rc = MQTTClient_setCallbacks(client, NULL, connlost, msgarrvd, delivered)) != MQTTCLIENT_SUCCESS)
+    {
+        printf("Failed to set callbacks, return code %d\n", rc);
+        rc = EXIT_FAILURE;
+        goto destroy_exit;
+    }
+
     conn_opts.keepAliveInterval = 20;
     conn_opts.cleansession = 1;
-
-    // Connect to the MQTT broker
-    if (MQTTClient_connect(client, &conn_opts) != MQTTCLIENT_SUCCESS) {
-        printf("Failed to connect to broker.\n");
-        exit(EXIT_FAILURE);
-    }
-    printf("Connected to broker at %s\n", ADDRESS);
-
-    // Set up the subscription with callbacks
-    MQTTClient_setCallbacks(client, &client, NULL, messageArrivedCallback, NULL);
-    if (MQTTClient_subscribe(client, TOPIC_SUB, QOS) != MQTTCLIENT_SUCCESS) {
-        printf("Failed to subscribe to topic '%s'.\n", TOPIC_SUB);
-        MQTTClient_disconnect(client, TIMEOUT);
-        MQTTClient_destroy(&client);
-        exit(EXIT_FAILURE);
-    }
-    printf("Subscribed to topic '%s'\n", TOPIC_SUB);
-
-    // Main loop to keep the client running
-    while (keepRunning) {
-        // You can add additional logic or other tasks here
+    if ((rc = MQTTClient_connect(client, &conn_opts)) != MQTTCLIENT_SUCCESS)
+    {
+        printf("Failed to connect, return code %d\n", rc);
+        rc = EXIT_FAILURE;
+        goto destroy_exit;
     }
 
-    // Clean up and disconnect
-    MQTTClient_disconnect(client, TIMEOUT);
+    pubmsg.payload = PAYLOAD;
+    pubmsg.payloadlen = (int)strlen(PAYLOAD);
+    pubmsg.qos = QOS;
+    pubmsg.retained = 0;
+    deliveredtoken = 0;
+    if ((rc = MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token)) != MQTTCLIENT_SUCCESS)
+    {
+    	printf("Failed to publish message, return code %d\n", rc);
+    	rc = EXIT_FAILURE;
+    }
+    else
+    {
+    	printf("Waiting for publication of %s\n"
+            "on topic %s for client with ClientID: %s\n",
+            PAYLOAD, TOPIC, CLIENTID);
+    	while (deliveredtoken != token)
+    	{
+			#if defined(_WIN32)
+				Sleep(100);
+			#else
+				usleep(10000L);
+			#endif
+    	}
+    }
+
+    if ((rc = MQTTClient_disconnect(client, 10000)) != MQTTCLIENT_SUCCESS)
+    {
+    	printf("Failed to disconnect, return code %d\n", rc);
+    	rc = EXIT_FAILURE;
+    }
+
+destroy_exit:
     MQTTClient_destroy(&client);
 
-    return 0;
+exit:
+    return rc;
 }
