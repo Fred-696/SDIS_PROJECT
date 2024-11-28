@@ -22,7 +22,8 @@ The planned final implementation will be:
 Broker → PC (Linux)
 MQTT Clients → 2 PCs + 2 microcontrollers (Esp32 and Esp8266)
 
-![image](https://github.com/user-attachments/assets/80972031-7581-47e6-9320-372cb7866858)
+![image](https://github.com/user-attachments/assets/f0c42e92-a630-4fd0-a1b5-60be23d0af91)
+
 
 Figure 1- Diagram of the desired MQTT broker at the end of the project with example topics
 
