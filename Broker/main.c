@@ -145,7 +145,7 @@ void process_publish(const char *message) {
     char topic[256];
     char payload[768];
     sscanf(message, "%s %s", topic, payload);
-    printf("%s, %s")
+    // printf("%s, %s")
 
     // Encaminhar a mensagem para os assinantes do tópico
     distribute_message(topic, payload);
