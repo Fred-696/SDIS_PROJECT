@@ -20,7 +20,8 @@ typedef struct {
     int client_sockets[MAX_CLIENTS];
 } Topic;
 
-Topic topics[MAX_TOPICS];
+Topic topic1[MAX_TOPICS];
+
 
 
 //Function Prototypes
@@ -32,6 +33,7 @@ void receive_subscribe(int client_socket);
 void process_subscribe(int client_socket, const char *message);
 void add_subscription(int client_socket, const char *topic);
 int is_subscribed(int client_socket, const char *topic);
+void print_local_ip();
 
 
 
@@ -60,19 +62,22 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    // Dar print do IP
-    print_local_ip();
 
     // Escuta por conexões
     if (listen(server_socket, 3) < 0) {
         perror("listen");
         exit(EXIT_FAILURE);
     }
+    
+
+    // Dar print do IP
+    print_local_ip();
 
     while (1) {
         FD_ZERO(&readfds);
         FD_SET(server_socket, &readfds);
         max_sd = server_socket;
+
 
         for (int i = 0; i < MAX_CLIENTS; i++) {
             int sd = client_sockets[i];
@@ -97,10 +102,12 @@ int main() {
             if (FD_ISSET(sd, &readfds)) {
                 // Verificar se é uma mensagem de publicação ou assinatura
                 // e chamar a função apropriada
+                printf("RECEBIDO\n");
                 receive_publish(sd);
                 receive_subscribe(sd);
             }
         }
+
     }
 
     return 0;
@@ -120,10 +127,16 @@ void handle_client(int client_socket) {
 void receive_publish(int client_socket) {
     char buffer[1024];
     int valread = read(client_socket, buffer, 1024);
+    printf("valread: %d\n", valread);
     if (valread > 0) {
         buffer[valread] = '\0';
         // Processar a mensagem publicada
+        for(size_t i = 0; i< valread; i++){
+            printf(" %02X", (unsigned char)buffer[i]);
+
+        }
         process_publish(buffer);
+        
     }
 }
 
@@ -132,15 +145,17 @@ void process_publish(const char *message) {
     char topic[256];
     char payload[768];
     sscanf(message, "%s %s", topic, payload);
+    printf("%s, %s")
 
     // Encaminhar a mensagem para os assinantes do tópico
     distribute_message(topic, payload);
 }
 
 void distribute_message(const char *topic, const char *message) {
+    printf("Topico: %s", topic);
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (is_subscribed(topics->client_sockets[i], topic)) {
-            send(topics->client_sockets[i], message, strlen(message), 0);
+        if (is_subscribed(topic1->client_sockets[i], topic)) {
+            send(topic1->client_sockets[i], message, strlen(message), 0);
         }
     }
 }
