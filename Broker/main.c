@@ -7,23 +7,10 @@ int main() {
     fd_set readfds;
     int client_sockets[MAX_CLIENTS] = {0};
 
-    // Cria o socket do servidor
-    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("socket failed");
-        exit(EXIT_FAILURE);
-    }
-
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
-
-    // Associa o socket ao endereço e porta
-    if (bind(server_socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        perror("bind failed");
-        exit(EXIT_FAILURE);
-    }
-
-
+    // ============================Initialize broker server==================================//
+    init_server_socket(BROKER_PORT);
+    // =====================================================================================//
+    
     // Escuta por conexões
     if (listen(server_socket, 3) < 0) {
         perror("listen");
@@ -58,16 +45,16 @@ int main() {
             }
         }
 
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            int sd = client_sockets[i];
-            if (FD_ISSET(sd, &readfds)) {
-                // Verificar se é uma mensagem de publicação ou assinatura
-                // e chamar a função apropriada
-                printf("RECEBIDO\n");
-                receive_publish(sd);
-                receive_subscribe(sd);
-            }
-        }
+        // for (int i = 0; i < MAX_CLIENTS; i++) {
+        //     int sd = client_sockets[i];
+        //     if (FD_ISSET(sd, &readfds)) {
+        //         // Verificar se é uma mensagem de publicação ou assinatura
+        //         // e chamar a função apropriada
+        //         printf("RECEBIDO\n");
+        //         receive_publish(sd);
+        //         receive_subscribe(sd);
+        //     }
+        // }
 
     }
 
