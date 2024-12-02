@@ -1,10 +1,15 @@
+# Targets
 all: mqtt_broker
 
+# Clean up build artifacts
 clean:
-		rm -f *.o mqtt_broker
+	rm -f *.o mqtt_broker
 
-mqtt_broker: main.o
-		gcc -o mqtt_broker main.o
+# Pattern rule for compiling .c files into .o files
+%.o: %.c
+	gcc -c -Wall -fpic $<
 
-main.o: main.c
-		gcc -c -Wall -fpic main.c
+# Final executable target
+mqtt_broker: main.o broker.o
+	gcc -o mqtt_broker main.o broker.o
+
