@@ -23,6 +23,32 @@ int init_server_socket(int port) {
         exit(EXIT_FAILURE);
     }
 
+    //============================= Print the public IP address======================//
+    char public_ip[INET_ADDRSTRLEN];
+    struct ifaddrs *ifap, *ifa;
+    void *tmp_addr_ptr;
+
+    // Get the list of network interfaces
+    if (getifaddrs(&ifap) == -1) {
+        perror("getifaddrs failed");
+        close(server_socket);
+        exit(EXIT_FAILURE);
+    }
+
+    // Iterate through the interfaces
+    for (ifa = ifap; ifa != NULL; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr->sa_family == AF_INET) { // Check for IPv4
+            tmp_addr_ptr = &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+            // Exclude loopback addresses (127.0.0.1)
+            if (strcmp(ifa->ifa_name, "lo") != 0) {
+                inet_ntop(AF_INET, tmp_addr_ptr, public_ip, INET_ADDRSTRLEN);
+                printf("Server created at IP: %s, Port: %d\n", public_ip, port);
+                break;  // We found a valid public address, no need to continue
+            }
+        }
+    }
+    freeifaddrs(ifap);  // Free the allocated memory
+    //===============================================================================//
     return server_socket;
 }
 
@@ -115,25 +141,3 @@ void handle_client(int client_socket) {
 //     // Retornar 1 se estiver inscrito, 0 caso contrário
 //     printf("is_subscribed function");
 // }
-
-
-void print_local_ip() {
-    struct ifaddrs *ifaddr;
-    if (getifaddrs(&ifaddr) == -1) {
-        perror("getifaddrs");
-        return;
-    }
-
-    for (struct ifaddrs *ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-        if (ifa->ifa_addr && ifa->ifa_addr->sa_family == AF_INET) {
-            char ip[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr, ip, INET_ADDRSTRLEN);
-            if (strcmp(ip, "127.0.0.1") != 0) {
-                printf("Server is running at IP: %s || Port: %d\n", ip, BROKER_PORT);
-                break;
-            }
-        }
-    }
-
-    freeifaddrs(ifaddr);
-}

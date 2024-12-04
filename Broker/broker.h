@@ -32,6 +32,3 @@ void handle_client(int client_socket);
 // void process_subscribe(int client_socket, const char *message);
 // void add_subscription(int client_socket, const char *topic);
 // int is_subscribed(int client_socket, const char *topic);
-
-
-void print_local_ip();
