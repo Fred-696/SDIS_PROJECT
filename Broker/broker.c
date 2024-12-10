@@ -1,7 +1,7 @@
 #include "broker.h"
 
 //function creates server at local ip and given port
-int init_server_socket(int port) {
+int create_websocket(void) {
     int server_socket;
     struct sockaddr_in address;
 
@@ -14,7 +14,7 @@ int init_server_socket(int port) {
     // Configure address structure
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(port);
+    address.sin_port = htons(BROKER_PORT);
 
     // Bind the socket to the specified address and port
     if (bind(server_socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
@@ -42,7 +42,7 @@ int init_server_socket(int port) {
             // Exclude loopback addresses (127.0.0.1)
             if (strcmp(ifa->ifa_name, "lo") != 0) {
                 inet_ntop(AF_INET, tmp_addr_ptr, public_ip, INET_ADDRSTRLEN);
-                printf("Server created at IP: %s, Port: %d\n", public_ip, port);
+                printf("Server created at IP: %s, Port: %d\n", public_ip, BROKER_PORT);
                 break;  // We found a valid public address, no need to continue
             }
         }

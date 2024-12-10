@@ -8,7 +8,7 @@ int main() {
     int client_sockets[MAX_CLIENTS] = {0};
 
     // ============================Initialize broker server==================================//
-    server_socket = init_server_socket(BROKER_PORT);
+    server_socket = create_websocket();
     // =====================================================================================//
 
     // Escuta por conexões

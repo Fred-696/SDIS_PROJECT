@@ -21,7 +21,7 @@ typedef struct {
 } Topic;
 
 //function creates server at local ip and given port
-int init_server_socket(int port);
+int create_websocket(void);
 
 //Function Prototypes
 void handle_client(int client_socket);
