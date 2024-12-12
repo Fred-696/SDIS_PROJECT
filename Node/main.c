@@ -5,7 +5,7 @@
 
 #include <unistd.h>
 
-#define ADDRESS     "tcp://192.168.5.126:1883"
+#define ADDRESS     "tcp://192.168.5.100:1883"
 #define CLIENTID    "7"
 #define TOPIC       "Test"
 #define PAYLOAD     "Hello World"
