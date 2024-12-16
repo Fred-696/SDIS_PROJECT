@@ -52,7 +52,20 @@ int create_websocket(void) {
     return server_socket;
 }
 
+void send_connack(int client_socket, uint8_t session_present, uint8_t return_code) {
+    uint8_t connack_packet[4];
 
+    // Fixed Header
+    connack_packet[0] = 0x20; // MQTT Control Packet (0010) || Reserved(0000)
+    connack_packet[1] = 0x02; // Remaining Length (0000) || (0010)
+
+    // Variable Header
+    connack_packet[2] = session_present & 0x01; // Reserved(0000) || SessionPresent(which is 1 or 0)
+    connack_packet[3] = return_code; // Connect Return Code (only 0x00 or 0x02)
+
+    // Send the packet
+    send(client_socket, connack_packet, 4, 0); //CONNACK allways has 4 bytes
+}
 
 
 

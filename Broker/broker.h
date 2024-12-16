@@ -20,6 +20,19 @@ typedef struct {
     int client_sockets[MAX_CLIENTS];
 } Topic;
 
+
+#ifndef MQTT_RETURN_CODES_H
+#define MQTT_RETURN_CODES_H
+
+//MQTT Connect Return Code Responses
+#define MQTT_CONN_ACCEPTED                  0x00  // Connection accepted
+#define MQTT_CONN_REFUSED_ID_REJECTED       0x02  // Connection Refused, identifier rejected
+
+#endif // MQTT_RETURN_CODES_H
+
+
+
+
 //function creates server at local ip and given port
 int create_websocket(void);
 
