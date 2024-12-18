@@ -4,7 +4,7 @@ clean:
 		rm -f *.o *.so mqtt_sub_pub
 
 mqtt_node: main.o
-		gcc -o $@ main.o -lpaho-mqtt3c
+		gcc -o $@ main.o -lpaho-mqtt3c -lpigpio
 
 %.o: %.c
 		gcc -c -Wall -Werror -fpic $^
