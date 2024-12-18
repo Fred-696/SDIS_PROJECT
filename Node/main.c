@@ -1,16 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <pigpio.h> // pigpio library
 #include "MQTTClient.h"
 
-#include <unistd.h>
-
 #define ADDRESS     "tcp://192.168.5.100:1883"
-#define CLIENTID    "7"
-#define TOPIC       "Test"
-#define PAYLOAD     "Hello World"
+#define CLIENTID    "2" // This Node's ClientID
+#define TOPIC       "ButtonPress"
+#define PAYLOAD     "B1" 
 #define QOS         1
 #define TIMEOUT     10000L
+#define BUTTON_GPIO 14 // GPIO 14 for button input
 
 MQTTClient_deliveryToken deliveredtoken;
 
@@ -19,19 +20,10 @@ void delivered(void *context, MQTTClient_deliveryToken dt){
     deliveredtoken = dt;
 }
 
-int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *message){
-    printf("Message arrived\n");
-    printf("topic: %s\n", topicName);
-    printf("message: %.*s\n", message->payloadlen, (char*)message->payload);
-    MQTTClient_freeMessage(&message);
-    MQTTClient_free(topicName);
-    return 1;
-}
-
 void connlost(void *context, char *cause){
     printf("\nConnection lost\n");
     if (cause){
-    	printf("cause: %s\n", cause);
+        printf("Cause: %s\n", cause);
     }
 }
 
@@ -42,58 +34,58 @@ int main(int argc, char* argv[]){
     MQTTClient_deliveryToken token;
     int rc;
 
+    // Initialize pigpio for GPIO control
+    if (gpioInitialise() < 0){
+        printf("Failed to initialize pigpio\n");
+        return EXIT_FAILURE;
+    }
+    gpioSetMode(BUTTON_GPIO, PI_INPUT);
+    gpioSetPullUpDown(BUTTON_GPIO, PI_PUD_UP); // Enable pull-up resistor
+
+    // Create MQTT Client
     if ((rc = MQTTClient_create(&client, ADDRESS, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS){
         printf("Failed to create client, return code %d\n", rc);
         rc = EXIT_FAILURE;
-        goto exit;
-    }
-
-    if ((rc = MQTTClient_setCallbacks(client, NULL, connlost, msgarrvd, delivered)) != MQTTCLIENT_SUCCESS){
-        printf("Failed to set callbacks, return code %d\n", rc);
-        rc = EXIT_FAILURE;
-        goto destroy_exit;
+        goto gpio_exit;
     }
 
     conn_opts.keepAliveInterval = 20;
     conn_opts.cleansession = 1;
+
+    // Set connection and callback functions
     if ((rc = MQTTClient_connect(client, &conn_opts)) != MQTTCLIENT_SUCCESS){
         printf("Failed to connect, return code %d\n", rc);
         rc = EXIT_FAILURE;
         goto destroy_exit;
     }
+    printf("Connected to MQTT broker.\n");
 
-    pubmsg.payload = PAYLOAD;
-    pubmsg.payloadlen = (int)strlen(PAYLOAD);
-    pubmsg.qos = QOS;
-    pubmsg.retained = 0;
-    deliveredtoken = 0;
-    if ((rc = MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token)) != MQTTCLIENT_SUCCESS){
-    	printf("Failed to publish message, return code %d\n", rc);
-    	rc = EXIT_FAILURE;
-    }
-    else{
-    	printf("Waiting for publication of %s\n"
-            "on topic %s for client with ClientID: %s\n",
-            PAYLOAD, TOPIC, CLIENTID);
-    	while (deliveredtoken != token)
-    	{
-			#if defined(_WIN32)
-				Sleep(100);
-			#else
-				usleep(10000L);
-			#endif
-    	}
-    }
+    printf("Monitoring button on GPIO %d...\n", BUTTON_GPIO);
 
-    if ((rc = MQTTClient_disconnect(client, 10000)) != MQTTCLIENT_SUCCESS)
-    {
-    	printf("Failed to disconnect, return code %d\n", rc);
-    	rc = EXIT_FAILURE;
+    while (1) {
+        if (gpioRead(BUTTON_GPIO) == 0) { // Button pressed (logic LOW)
+            pubmsg.payload = PAYLOAD;
+            pubmsg.payloadlen = (int)strlen(PAYLOAD);
+            pubmsg.qos = QOS;
+            pubmsg.retained = 0;
+            deliveredtoken = 0;
+
+            if ((rc = MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token)) != MQTTCLIENT_SUCCESS){
+                printf("Failed to publish message, return code %d\n", rc);
+            } else {
+                printf("Button pressed! Sent message: %s to topic: %s\n", PAYLOAD, TOPIC);
+            }
+            while (gpioRead(BUTTON_GPIO) == 0) { // Debounce - wait for release
+                usleep(50000); // 50ms delay
+            }
+        }
+        usleep(10000); // Small delay to prevent CPU overload
     }
 
 destroy_exit:
+    MQTTClient_disconnect(client, TIMEOUT);
     MQTTClient_destroy(&client);
-
-exit:
+gpio_exit:
+    gpioTerminate();
     return rc;
 }
