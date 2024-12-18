@@ -72,8 +72,9 @@ int main(int argc, char* argv[]){
 
             if ((rc = MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token)) != MQTTCLIENT_SUCCESS){
                 printf("Failed to publish message, return code %d\n", rc);
-            } else {
-                printf("Button pressed! Sent message: %s to topic: %s\n", PAYLOAD, TOPIC);
+            } 
+            else {
+                printf("B1 pressed! Sent message sucessfully: %s to topic: %s\n", PAYLOAD, TOPIC);
             }
             while (gpioRead(BUTTON_GPIO) == 0) { // Debounce - wait for release
                 usleep(50000); // 50ms delay
