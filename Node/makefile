@@ -7,4 +7,4 @@ mqtt_node: main.o
 		gcc -o $@ main.o -lpaho-mqtt3c -lpigpio
 
 %.o: %.c
-		gcc -c -Wall -Werror -fpic $^
+		gcc -c -Wall -fpic $^
