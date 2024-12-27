@@ -71,6 +71,7 @@ int main(int argc, char* argv[]){
         goto destroy_exit;
     }
     printf("Connected to MQTT broker.\n");
+    mqtt_connected = 1;
 
     printf("Start Monitoring button on GPIO %d...\n", BUTTON_GPIO);
     while (1) {
