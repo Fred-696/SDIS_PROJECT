@@ -65,7 +65,11 @@ int main(int argc, char* argv[]){
 
     conn_opts.keepAliveInterval = 20;
     conn_opts.cleansession = 1;
-
+    
+    //set callback functions
+    MQTTClient_setCallbacks(client, NULL, connlost, NULL, NULL);
+    printf("Setted MQTT callback functons\n");
+    
     //set connection
     if (mqtt_connect(&client, &conn_opts) != MQTTCLIENT_SUCCESS){
         printf("Terminating\n");
@@ -73,10 +77,6 @@ int main(int argc, char* argv[]){
     }
     mqtt_connected = 1;
     printf("Connected to MQTT broker.\n");
-
-    //set callback functions
-    MQTTClient_setCallbacks(client, NULL, connlost, NULL, NULL);
-    printf("Setted MQTT callback functons\n");
 
     //================================================================//
     printf("Start Monitoring button on GPIO %d...\n", BUTTON_GPIO);
@@ -92,7 +92,7 @@ int main(int argc, char* argv[]){
                 printf("Failed to publish message, return code %d\n", rc);
             } 
             else {
-                printf("B1 pressed! Sent message sucessfully: %s to topic: %s\n", PAYLOAD, TOPIC);
+                printf("B1 pressed! Sent message sucessfully: '%s' to topic: '%s'\n", PAYLOAD, TOPIC);
             }
             while (gpioRead(BUTTON_GPIO) == 0) { // Debounce - wait for release
                 usleep(50000); // 50ms delay
