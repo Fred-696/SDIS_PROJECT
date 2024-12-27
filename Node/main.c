@@ -85,6 +85,9 @@ int main(int argc, char* argv[]) {
                 printf("Connection lost! Attempting to reconnect...\n");
                 mqtt_connect(&client, &conn_opts); // Reconnect if disconnected
             }
+            else {
+                printf("its connected\n");
+            }
             connection_check_timer = 0; // Reset timer
         }
 
