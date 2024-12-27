@@ -5,7 +5,7 @@
 #include <pigpio.h> // pigpio library
 #include "MQTTClient.h"
 
-#define ADDRESS     "tcp://192.168.5.100:1883"
+#define ADDRESS     "tcp://192.168.1.227:1883"
 #define CLIENTID    "2" // This Node's ClientID
 #define TOPIC       "ButtonPress"
 #define PAYLOAD     "B1" 
@@ -27,6 +27,18 @@ void connlost(void *context, char *cause){
     }
 }
 
+// Function to connect/reconnect to MQTT broker
+int mqtt_connect(MQTTClient *client, MQTTClient_connectOptions *conn_opts) {
+    int rc;
+    while ((rc = MQTTClient_connect(*client, conn_opts)) != MQTTCLIENT_SUCCESS) {
+        printf("Failed to connect to broker, return code %d. Retrying in 5 seconds...\n", rc);
+        sleep(5); // Wait before retrying
+    }
+    printf("Connected to MQTT broker.\n");
+    return rc;
+}
+
+//================================================================================================//
 int main(int argc, char* argv[]){
     MQTTClient client;
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
@@ -41,6 +53,7 @@ int main(int argc, char* argv[]){
     }
     gpioSetMode(BUTTON_GPIO, PI_INPUT);
     gpioSetPullUpDown(BUTTON_GPIO, PI_PUD_UP); // Enable pull-up resistor
+    printf("Initialized pigpio\n");
 
     // Create MQTT Client
     if ((rc = MQTTClient_create(&client, ADDRESS, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS){
@@ -51,17 +64,15 @@ int main(int argc, char* argv[]){
 
     conn_opts.keepAliveInterval = 20;
     conn_opts.cleansession = 1;
-
-    // Set connection and callback functions
-    if ((rc = MQTTClient_connect(client, &conn_opts)) != MQTTCLIENT_SUCCESS){
-        printf("Failed to connect, return code %d\n", rc);
-        rc = EXIT_FAILURE;
+    
+    //set connection
+    if (mqtt_connect(&client, &conn_opts) != MQTTCLIENT_SUCCESS){
+        printf("Terminating\n");
         goto destroy_exit;
     }
-    printf("Connected to MQTT broker.\n");
 
-    printf("Monitoring button on GPIO %d...\n", BUTTON_GPIO);
-
+    //================================================================//
+    printf("Start Monitoring button on GPIO %d...\n", BUTTON_GPIO);
     while (1) {
         if (gpioRead(BUTTON_GPIO) == 0) { // Button pressed (logic LOW)
             pubmsg.payload = PAYLOAD;
