@@ -85,7 +85,7 @@ int main(int argc, char* argv[]){
         }
         else{
             printf("nice\n");
-            sleep(1000);
+            sleep(1);
         }
 
 
