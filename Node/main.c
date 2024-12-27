@@ -66,7 +66,7 @@ int main(int argc, char* argv[]){
     conn_opts.cleansession = 1;
 
     //set connection
-    if (mqtt_connect(&client, &conn_opts) != MQTTCLIENT_SUCESS){
+    if (mqtt_connect(&client, &conn_opts) != MQTTCLIENT_SUCCESS){
         printf("Terminating\n");
         goto destroy_exit;
     }
