@@ -5,7 +5,7 @@
 #include <pigpio.h> // pigpio library
 #include "MQTTClient.h"
 
-#define ADDRESS     "tcp://192.168.5.100:1883"
+#define ADDRESS     "tcp://192.168.1.227:1883"
 #define CLIENTID    "2" // This Node's ClientID
 #define TOPIC       "ButtonPress"
 #define PAYLOAD     "B1" 
@@ -14,7 +14,6 @@
 #define BUTTON_GPIO 14 // GPIO 14 for button input
 
 MQTTClient_deliveryToken deliveredtoken;
-int mqtt_connected = 0; // Tracks MQTT connection status
 
 void delivered(void *context, MQTTClient_deliveryToken dt){
     printf("Message with token value %d delivery confirmed\n", dt);
@@ -22,8 +21,10 @@ void delivered(void *context, MQTTClient_deliveryToken dt){
 }
 
 void connlost(void *context, char *cause){
-    printf("\nConnection lost. Cause: %s\n", cause ? cause : "Unknown");
-    mqtt_connected = 0; // Mark as disconnected
+    printf("\nConnection lost\n");
+    if (cause){
+        printf("Cause: %s\n", cause);
+    }
 }
 
 // Function to connect/reconnect to MQTT broker
@@ -34,7 +35,6 @@ int mqtt_connect(MQTTClient *client, MQTTClient_connectOptions *conn_opts) {
         sleep(5); // Wait before retrying
     }
     printf("Connected to MQTT broker.\n");
-    mqtt_connected = 1; // Mark as connected
     return rc;
 }
 
@@ -44,6 +44,7 @@ int main(int argc, char* argv[]){
     MQTTClient_message pubmsg = MQTTClient_message_initializer;
     MQTTClient_deliveryToken token;
     int rc;
+    int mqtt_connected = 0; // Tracks MQTT connection status
 
     // Initialize pigpio for GPIO control
     if (gpioInitialise() < 0){
@@ -52,6 +53,7 @@ int main(int argc, char* argv[]){
     }
     gpioSetMode(BUTTON_GPIO, PI_INPUT);
     gpioSetPullUpDown(BUTTON_GPIO, PI_PUD_UP); // Enable pull-up resistor
+    printf("Initialized pigpio\n");
 
     // Create MQTT Client
     if ((rc = MQTTClient_create(&client, ADDRESS, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS){
@@ -63,20 +65,15 @@ int main(int argc, char* argv[]){
     conn_opts.keepAliveInterval = 20;
     conn_opts.cleansession = 1;
 
-    // Set callback functions
-    MQTTClient_setCallbacks(client, NULL, connlost, delivered, NULL);
+    //set connection
+    if (mqtt_connect(&client, &conn_opts) != MQTTCLIENT_SUCESS){
+        printf("Terminating\n");
+        goto destroy_exit;
+    }
+    printf("Connected to MQTT broker.\n");
 
-    // Connect to MQTT broker (with retry logic)
-    mqtt_connect(&client, &conn_opts);
-
-    printf("Monitoring button on GPIO %d...\n", BUTTON_GPIO);
-
+    printf("Start Monitoring button on GPIO %d...\n", BUTTON_GPIO);
     while (1) {
-        if (!mqtt_connected) {
-            // If disconnected, try to reconnect
-            mqtt_connect(&client, &conn_opts);
-        }
-
         if (gpioRead(BUTTON_GPIO) == 0) { // Button pressed (logic LOW)
             pubmsg.payload = PAYLOAD;
             pubmsg.payloadlen = (int)strlen(PAYLOAD);
@@ -86,12 +83,11 @@ int main(int argc, char* argv[]){
 
             if ((rc = MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token)) != MQTTCLIENT_SUCCESS){
                 printf("Failed to publish message, return code %d\n", rc);
-            } else {
-                printf("B1 pressed! Sent message successfully: %s to topic: %s\n", PAYLOAD, TOPIC);
+            } 
+            else {
+                printf("B1 pressed! Sent message sucessfully: %s to topic: %s\n", PAYLOAD, TOPIC);
             }
-
-            // Debounce - wait for release
-            while (gpioRead(BUTTON_GPIO) == 0) {
+            while (gpioRead(BUTTON_GPIO) == 0) { // Debounce - wait for release
                 usleep(50000); // 50ms delay
             }
         }
