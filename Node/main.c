@@ -38,6 +38,7 @@ int mqtt_connect(MQTTClient *client, MQTTClient_connectOptions *conn_opts) {
     return rc;
 }
 
+//================================================================================================//
 int main(int argc, char* argv[]){
     MQTTClient client;
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
@@ -70,9 +71,14 @@ int main(int argc, char* argv[]){
         printf("Terminating\n");
         goto destroy_exit;
     }
-    printf("Connected to MQTT broker.\n");
     mqtt_connected = 1;
+    printf("Connected to MQTT broker.\n");
 
+    //set callback functions
+    MQTTClient_setCallbacks(client, NULL, connlost, NULL, NULL);
+    printf("Setted MQTT callback functons\n");
+
+    //================================================================//
     printf("Start Monitoring button on GPIO %d...\n", BUTTON_GPIO);
     while (1) {
         if (gpioRead(BUTTON_GPIO) == 0) { // Button pressed (logic LOW)
