@@ -14,6 +14,7 @@
 #define BUTTON_GPIO 14 // GPIO 14 for button input
 
 MQTTClient_deliveryToken deliveredtoken;
+int mqtt_connected = 0; // Tracks MQTT connection status
 
 void delivered(void *context, MQTTClient_deliveryToken dt){
     printf("Message with token value %d delivery confirmed\n", dt);
@@ -34,6 +35,7 @@ int mqtt_connect(MQTTClient *client, MQTTClient_connectOptions *conn_opts) {
         printf("Failed to connect to broker, return code %d. Retrying in 5 seconds...\n", rc);
         sleep(5); // Wait before retrying
     }
+    mqtt_connected = 1;
     printf("Connected to MQTT broker.\n");
     return rc;
 }
@@ -45,7 +47,6 @@ int main(int argc, char* argv[]){
     MQTTClient_message pubmsg = MQTTClient_message_initializer;
     MQTTClient_deliveryToken token;
     int rc;
-    int mqtt_connected = 0; // Tracks MQTT connection status
 
     // Initialize pigpio for GPIO control
     if (gpioInitialise() < 0){
@@ -69,18 +70,25 @@ int main(int argc, char* argv[]){
     //set callback functions
     MQTTClient_setCallbacks(client, NULL, connlost, NULL, NULL);
     printf("Setted MQTT callback functons\n");
-    
+
     //set connection
     if (mqtt_connect(&client, &conn_opts) != MQTTCLIENT_SUCCESS){
         printf("Terminating\n");
         goto destroy_exit;
     }
-    mqtt_connected = 1;
-    printf("Connected to MQTT broker.\n");
 
     //================================================================//
     printf("Start Monitoring button on GPIO %d...\n", BUTTON_GPIO);
     while (1) {
+        if (mqtt_connected != 1){
+            printf("fds\n");
+        }
+        else{
+            printf("nice\n");
+            sleep(1000);
+        }
+
+
         if (gpioRead(BUTTON_GPIO) == 0) { // Button pressed (logic LOW)
             pubmsg.payload = PAYLOAD;
             pubmsg.payloadlen = (int)strlen(PAYLOAD);
@@ -92,7 +100,7 @@ int main(int argc, char* argv[]){
                 printf("Failed to publish message, return code %d\n", rc);
             } 
             else {
-                printf("B1 pressed! Sent message sucessfully: '%s' to topic: '%s'\n", PAYLOAD, TOPIC);
+                printf("B1 pressed! Sent message sucessfully: '%s' to topic '%s'\n", PAYLOAD, TOPIC);
             }
             while (gpioRead(BUTTON_GPIO) == 0) { // Debounce - wait for release
                 usleep(50000); // 50ms delay
