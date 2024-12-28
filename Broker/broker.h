@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #ifndef _ARPA_INET_H_
 #define _ARPA_INET_H_
@@ -19,7 +20,7 @@
 //=============================================================//
 
 #define BROKER_PORT 1883
-#define MAX_CLIENTS 4
+#define MAX_CLIENTS 3
 #define MAX_TOPICS 5
 #define QOS 1
 
@@ -37,15 +38,18 @@ typedef struct {
     //payload
     ssize_t payload_len;
     uint8_t *payload;
+
+    int conn_fd;                   //connection file descriptor
 } mqtt_pck;
 
 
 typedef struct {
-    int connfd;                   //connection file descriptor
+    int conn_fd;                   //connection file descriptor
     int keepalive;                //time between finishing 1 package and next package, in seconds
     bool connected;               //connected or not
     char topic[MAX_TOPICS][256];  //Client's subscripted topics (at maximum all topics)
 
+    char* client_id;
     mqtt_pck packet;
 } session;
 
@@ -64,8 +68,11 @@ typedef struct {
 //function creates server at local ip and given port
 int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen);
 int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session);
+
 int connect_handler(mqtt_pck *received_pck, session* running_session);
-int send_connack(session* running_session, int returncode);
+int send_connack(session* running_session, int return_code, int session_present);
+
+int ping_handler(mqtt_pck *received_pck);
 
 
 //Function Prototypes

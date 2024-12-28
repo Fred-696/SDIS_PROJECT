@@ -55,10 +55,11 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
     printf("Flag: %d || Package Type: %d || Remaining Length: %ld\n", received_pck.flag, received_pck.pck_type, received_pck.remaining_len);
 
     //=============Determine packet type received from a Client=================//
+    printf("Packet Type: ");
     switch (received_pck.pck_type)
     {
     case 1: //CONNECT
-        printf("CONNECT Packet\n");
+        printf("CONNECT\n");
         if (received_pck.flag != 0){ //flag must be 0 for CONNECT
             printf("Invalid flag for CONNECT\n");
             return -1;
@@ -85,17 +86,20 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
         return connect_handler(&received_pck, running_session); //interpret connect command
     
     case 3: //PUBLISH
-        printf("PUBLISH Packet\n");
+        printf("PUBLISH\n");
         return -1;
     
     case 4: //PUBLISH ACKNOWLEDGE
-        printf("PUBACK Packet\n");
+        printf("PUBACK\n");
         return -1;
 
     case 8: //SUBSCRIBE
-        printf("SUBSCRIBE Packet\n");
+        printf("SUBSCRIBE\n");
         return -1;
 
+    case 12:
+        printf("PING Request\n");
+        return ping_handler(&received_pck);
     default:
         return -1;
     }
@@ -105,21 +109,55 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
 
 int connect_handler(mqtt_pck *received_pck, session* running_session){
     int return_code = 0; 
+    int session_present = 0;
+
     //check variable header
     uint8_t expected_protocol[8] = {0x00, 0x04, 0x4D, 0x51, 0x54, 0x54, 0x04, 0x02};
     if (memcmp(received_pck->variable_header, expected_protocol, 8) != 0){
         printf("Invalid protocol\n");
         return_code = 1;
     }
-    running_session->keepalive = received_pck->variable_header[9];
-    printf("Valid Protocol || Keepalive: %d\n", running_session->keepalive);
+    int keepalive = received_pck->variable_header[9];
     
     //Check payload
-    return send_connack(running_session, return_code);
+    int id_len = (received_pck->payload[0] << 8)  | received_pck->payload[1];
 
+    char* client_id = malloc(id_len);
+    if (client_id == NULL) {
+        perror("Failed to allocate memory for client id");
+        exit(EXIT_FAILURE);
+    }
+    memcpy(client_id, received_pck->payload + 2, id_len);
+
+    //check if client_id exists in any session
+    int session_idx = -1;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (running_session[i].client_id != NULL) {
+            //compare existing session client_id with the received client_id
+            if (strcmp(running_session[i].client_id, client_id) == 0) {
+                printf("Ongoing session found for client_id: %s at index %d\n", client_id, i);
+                session_idx = i;
+                session_present = 1; // Mark session as present
+                break;
+            }
+        } 
+        else if (session_idx == -1) {
+            //save first available slot for a new session
+            session_idx = i;
+        }
+    }
+    //associate client info with session
+    running_session[session_idx].client_id = client_id;
+    running_session[session_idx].conn_fd = received_pck->conn_fd;
+    running_session[session_idx].keepalive = keepalive;
+
+    printf("Valid Protocol || Keepalive: %d || ClientID: %s || SessionIdx: %d\n", keepalive, client_id, session_idx);
+
+    //assign the new connection to the corresponding session
+    return send_connack(&running_session[session_idx], return_code, session_present);
 }
 
-int send_connack(session* running_session, int return_code) {
+int send_connack(session* running_session, int return_code, int session_present) {
     uint8_t connack_packet[4];
 
     //fixed Header
@@ -129,82 +167,23 @@ int send_connack(session* running_session, int return_code) {
     //variable Header
     connack_packet[2] = session_present & 0x01; // Reserved(0000) || SessionPresent(which is 1 or 0)
     connack_packet[3] = return_code; //Connect Return Code (only 0x00 or 0x01)
-}
-
-
-
-
-void handle_client(int client_socket) {
-    char buffer[1024];
-    int valread = read(client_socket, buffer, 1024);
-    if (valread == 0) {
-        close(client_socket);
-    } else {
-        buffer[valread] = '\0';
-        printf("Message received: %s\n", buffer);
+    if (send(running_session->conn_fd, connack_packet, sizeof(connack_packet), 0) < 0){
+        printf("Failed to send CONNACK\n");
+        return -1;
     }
+    printf("CONNACK sent successfully\n");
+    return 0;
 }
 
-// void receive_publish(int client_socket) {
-//     char buffer[1024];
-//     int valread = read(client_socket, buffer, 1024);
-//     printf("valread: %d\n", valread);
-//     if (valread > 0) {
-//         buffer[valread] = '\0';
-//         // Processar a mensagem publicada
-//         for(size_t i = 0; i< valread; i++){
-//             printf(" %02X", (unsigned char)buffer[i]);
+int ping_handler(mqtt_pck *received_pck) {
+    uint8_t ping_packet[2] = {0};
+    ping_packet[0] = 0xd0; // PINGRESP fixed header
+    ping_packet[1] = 0x00; // Remaining length
+    if (send(received_pck->conn_fd, ping_packet, sizeof(ping_packet), 0) < 0) {
+        perror("Failed to send PING packet");
+        return -1;
+    }
 
-//         }
-//         process_publish(buffer);
-        
-//     }
-// }
-
-// void process_publish(const char *message) {
-//     // Extrair o tópico e a mensagem
-//     char topic[256];
-//     char payload[768];
-//     sscanf(message, "%s %s", topic, payload);
-//     // printf("%s, %s")
-
-//     // Encaminhar a mensagem para os assinantes do tópico
-//     distribute_message(topic, payload);
-// }
-
-// void distribute_message(const char *topic, const char *message) {
-//     printf("Topico: %s", topic);
-//     for (int i = 0; i < MAX_CLIENTS; i++) {
-//         if (is_subscribed(topic1->client_sockets[i], topic)) {
-//             send(topic1->client_sockets[i], message, strlen(message), 0);
-//         }
-//     }
-// }
-// void receive_subscribe(int client_socket) {
-//     char buffer[1024];
-//     int valread = read(client_socket, buffer, 1024);
-//     if (valread > 0) {
-//         buffer[valread] = '\0';
-//         // Processar a solicitação de assinatura
-//         process_subscribe(client_socket, buffer);
-//     }
-// }
-
-// void process_subscribe(int client_socket, const char *message) {
-//     char topic[256];
-//     sscanf(message, "%s", topic);
-
-//     // Adicionar o cliente à lista de assinantes do tópico
-//     add_subscription(client_socket, topic);
-// }
-// void add_subscription(int client_socket, const char *topic) {
-//     // Adicionar lógica para armazenar a assinatura
-//     // Pode ser uma lista ou um mapa de tópicos para clientes
-//     printf("add_subscription function");
-// }
-
-// int is_subscribed(int client_socket, const char *topic) {
-//     // Verificar se o cliente está inscrito no tópico
-//     // Retornar 1 se estiver inscrito, 0 caso contrário
-//     printf("is_subscribed function");
-// }
+    printf("PINGRESP sent successfully\n");
+    return 0;
+}
