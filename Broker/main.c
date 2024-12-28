@@ -16,7 +16,9 @@ int main() {
 
     //loop variables
     uint8_t  buffer[BUFFER_SIZE] = {0};    //buffer
-    
+    int connfd;
+    int session_id;
+
     // ============================Initialize broker server==================================//
     if (create_tcpserver(&server_fd, &address, &addrlen) < 0){
         exit(EXIT_FAILURE);
@@ -25,20 +27,36 @@ int main() {
        
     while (1) {
         printf("looping\n"); //just for testing remove later
-        sleep(1);
-        if ((running_session->connfd = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0){
+        if ((connfd = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0){
             perror("Connection accepted error");
             exit(EXIT_FAILURE);
         }
-        printf("new connection\n");
+        printf("New connection: connfd = %d\n", connfd);
+        //check if ongoing session
+        session_id = -1;
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            //check for an ongoing session
+            if (running_session[i].connfd == connfd) {
+                printf("Ongoing session found at index %d\n", i);
+                session_id = i;
+                break;
+            }
+            //if sessionid not found, use the first available session slot
+            else if (session_id == -1 && running_session[i].connfd == 0) {
+                session_id = i;
+            }
+        }
 
-        for (int i = 0; i <= MAX_CLIENTS; i++){
-            
+        //assign the new connection to the corresponding session
+        if (running_session[session_id].connfd == 0) {
+            printf("Assigning connfd %d to session ID %d\n", connfd, session_id);
+            running_session[session_id].connfd = connfd;
+            running_session[session_id].connected = true; //register session as connected
         }
 
         //read data from client
         ssize_t valread;
-        if ((valread = read(running_session->connfd, buffer, BUFFER_SIZE)) < 0){
+        if ((valread = read(running_session[session_id].connfd, buffer, BUFFER_SIZE)) < 0){
             perror("Reading error\n");
         }
 
@@ -51,6 +69,7 @@ int main() {
         print_bytes(buffer, valread); // Print the data in byte form
         memset(buffer, 0, sizeof(buffer)); //set memory of buffer to 0
         printf("finished\n");
+        sleep(1);
     }
 
     // return 0;
