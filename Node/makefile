@@ -1,10 +1,10 @@
 all: mqtt_node
 
 clean:
-		rm -f *.o *.so mqtt_sub_pub
+		rm -f *.o mqtt_node
 
 mqtt_node: main.o
-		gcc -o $@ main.o -lpaho-mqtt3c -lpigpio
+		gcc -o $@ main.o -lmosquitto -lpigpio -lpthread
 
 %.o: %.c
 		gcc -c -Wall -fpic $^
