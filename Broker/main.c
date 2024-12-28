@@ -1,60 +1,59 @@
 #include "broker.h"
 
+void print_bytes(const uint8_t *buffer, ssize_t length) {
+    printf("Received Bytes:\n");
+    for (ssize_t i = 0; i < length; i++) {
+        printf("%02X ", buffer[i]); // Print each byte in hexadecimal
+    }
+    printf("\n");
+}
+
 int main() {
-    int server_socket, max_sd;
-    struct sockaddr_in address;
+    int server_fd; //file descriptor
+    struct sockaddr_in address;    //struct with family, port, address
     int addrlen = sizeof(address);
-    fd_set readfds;
-    int client_sockets[MAX_CLIENTS] = {0};
+    session running_session[MAX_CLIENTS] = {0};                //1 session for each node
 
-    // ============================Initialize broker server==================================//
-    server_socket = create_websocket();
-    // =====================================================================================//
-
-    // Escuta por conexões
-    if (listen(server_socket, 3) < 0) {
-        perror("listen");
-        exit(EXIT_FAILURE);
-    }
+    //loop variables
+    uint8_t  buffer[BUFFER_SIZE] = {0};    //buffer
     
+    // ============================Initialize broker server==================================//
+    if (create_tcpserver(&server_fd, &address, &addrlen) < 0){
+        exit(EXIT_FAILURE);
+    };
+    // =====================================================================================//
+       
     while (1) {
-        FD_ZERO(&readfds);
-        FD_SET(server_socket, &readfds);
-        max_sd = server_socket;
+        printf("looping\n"); //just for testing remove later
+        sleep(1);
+        if ((running_session->connfd = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0){
+            perror("Connection accepted error");
+            exit(EXIT_FAILURE);
+        }
+        printf("new connection\n");
 
-
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            int sd = client_sockets[i];
-            if (sd > 0) FD_SET(sd, &readfds);
-            if (sd > max_sd) max_sd = sd;
+        for (int i = 0; i <= MAX_CLIENTS; i++){
+            
         }
 
-        // activity = select(max_sd + 1, &readfds, NULL, NULL, NULL);
-
-        if (FD_ISSET(server_socket, &readfds)) {
-            int new_socket = accept(server_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen);
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (client_sockets[i] == 0) {
-                    client_sockets[i] = new_socket;
-                    break;
-                }
-            }
+        //read data from client
+        ssize_t valread;
+        if ((valread = read(running_session->connfd, buffer, BUFFER_SIZE)) < 0){
+            perror("Reading error\n");
         }
 
-        // for (int i = 0; i < MAX_CLIENTS; i++) {
-        //     int sd = client_sockets[i];
-        //     if (FD_ISSET(sd, &readfds)) {
-        //         // Verificar se é uma mensagem de publicação ou assinatura
-        //         // e chamar a função apropriada
-        //         printf("RECEBIDO\n");
-        //         receive_publish(sd);
-        //         receive_subscribe(sd);
-        //     }
-        // }
+        //Process MQTT packet
+        if (mqtt_process_pck(buffer) < 0){
+            printf("Process error\n");
+        };
 
+        printf("size: %ld\n", valread);
+        print_bytes(buffer, valread); // Print the data in byte form
+        memset(buffer, 0, sizeof(buffer)); //set memory of buffer to 0
+        printf("finished\n");
     }
 
-    return 0;
+    // return 0;
 }
 
 // #include <stdio.h>

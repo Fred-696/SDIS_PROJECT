@@ -1,56 +1,61 @@
 #include "broker.h"
 
 //function creates server at local ip and given port
-int create_websocket(void) {
-    int server_socket;
-    struct sockaddr_in address;
-
-    // Create socket
-    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen) {
+    //create socket
+    if ((*server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) { //IPv4, stream-oriented (TCP)
         perror("Socket creation failed");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
-    // Configure address structure
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(BROKER_PORT);
+    //setup address
+    address->sin_family = AF_INET;            //address family to IPv4
+    address->sin_addr.s_addr = INADDR_ANY;    //accepting connectons on any available interface
+    address->sin_port = htons(BROKER_PORT);   //set port in network byte order
 
-    // Bind the socket to the specified address and port
-    if (bind(server_socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    //bind the socket to the specified address and port
+    if (bind(*server_fd, (struct sockaddr *)address, *addrlen) < 0) { //cast to simple struct sockaddr
         perror("Socket binding failed");
-        close(server_socket); // Clean up the socket before exiting
-        exit(EXIT_FAILURE);
+        close(*server_fd); //clean up the socket before exiting
+        return -1;
     }
 
-    //============================= Print the public IP address======================//
-    char public_ip[INET_ADDRSTRLEN];
-    struct ifaddrs *ifap, *ifa;
-    void *tmp_addr_ptr;
-
-    // Get the list of network interfaces
-    if (getifaddrs(&ifap) == -1) {
-        perror("getifaddrs failed");
-        close(server_socket);
-        exit(EXIT_FAILURE);
+    //listen for incoming connections
+    if (listen(*server_fd, MAX_CLIENTS) < 0){ 
+        perror("Listening failed\n");
+        close(*server_fd); //clean up the socket before exiting
+        return -1;
     }
-
-    // Iterate through the interfaces
-    for (ifa = ifap; ifa != NULL; ifa = ifa->ifa_next) {
-        if (ifa->ifa_addr->sa_family == AF_INET) { // Check for IPv4
-            tmp_addr_ptr = &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
-            // Exclude loopback addresses (127.0.0.1)
-            if (strcmp(ifa->ifa_name, "lo") != 0) {
-                inet_ntop(AF_INET, tmp_addr_ptr, public_ip, INET_ADDRSTRLEN);
-                printf("Server created at IP: %s, Port: %d\n", public_ip, BROKER_PORT);
-                break;  // We found a valid public address, no need to continue
-            }
-        }
-    }
-    freeifaddrs(ifap);  // Free the allocated memory
-    //===============================================================================//
-    return server_socket;
+    printf("Server created sucessfully and listening\n");
+    return 0;
 }
+
+int mqtt_process_pck(uint8_t *buffer){
+    //Analise Fixed Header
+    uint8_t flag = buffer[0] & 0x0F;             //0->4 flag
+    uint8_t pck_type = (buffer[0] >> 4) & 0x0F;  //4->7 control packet type
+
+    switch (pck_type)
+    {
+    case 1:
+        printf("received CONNECT Command\n");
+        if (flag != 0){ //must be 0 for CONNECT
+            printf("Invalid flag for CONNECT\n");
+            return -1;
+        }
+        break;
+    
+    default:
+        return -1;
+        break;
+    }
+    return 0;
+}
+
+
+
+
+
 
 void send_connack(int client_socket, uint8_t session_present, uint8_t return_code) {
     uint8_t connack_packet[4];
@@ -69,16 +74,6 @@ void send_connack(int client_socket, uint8_t session_present, uint8_t return_cod
 
 
 
-
-
-
-
-
-
-
-
-
-Topic topic1[MAX_TOPICS];
 
 void handle_client(int client_socket) {
     char buffer[1024];
