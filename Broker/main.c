@@ -8,6 +8,8 @@ void print_bytes(const uint8_t *buffer, ssize_t length) {
     printf("\n");
 }
 
+//DEPOIS adicionar funcao para dar free da memoria alocado por malloc
+
 int main() {
     int server_fd; //file descriptor
     struct sockaddr_in address;    //struct with family, port, address
@@ -26,12 +28,11 @@ int main() {
     // =====================================================================================//
        
     while (1) {
-        printf("looping\n"); //just for testing remove later
         if ((connfd = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0){
             perror("Connection accepted error");
             exit(EXIT_FAILURE);
         }
-        printf("New connection: connfd = %d\n", connfd);
+        printf("New connection: connfd = %d || ", connfd);
         //check if ongoing session
         session_id = -1;
         for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -49,7 +50,7 @@ int main() {
 
         //assign the new connection to the corresponding session
         if (running_session[session_id].connfd == 0) {
-            printf("Assigning connfd %d to session ID %d\n", connfd, session_id);
+            printf("Assigning to session ID %d\n", session_id);
             running_session[session_id].connfd = connfd;
             running_session[session_id].connected = true; //register session as connected
         }
@@ -60,11 +61,16 @@ int main() {
             perror("Reading error\n");
         }
 
+        mqtt_pck received_pck = {0};
         //Process MQTT packet
-        if (mqtt_process_pck(buffer) < 0){
+        if (mqtt_process_pck(buffer, received_pck, &running_session[session_id]) < 0){
             printf("Process error\n");
         };
 
+
+
+
+        //cenas DEBUG
         printf("size: %ld\n", valread);
         print_bytes(buffer, valread); // Print the data in byte form
         memset(buffer, 0, sizeof(buffer)); //set memory of buffer to 0

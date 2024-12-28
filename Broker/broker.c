@@ -30,29 +30,91 @@ int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen) 
     return 0;
 }
 
-int mqtt_process_pck(uint8_t *buffer){
-    //Analise Fixed Header
-    uint8_t flag = buffer[0] & 0x0F;             //0->4 flag
-    uint8_t pck_type = (buffer[0] >> 4) & 0x0F;  //4->7 control packet type
+int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session){
+    //======================Analise Fixed Header 1st byte=======================================//
+    received_pck.flag = buffer[0] & 0x0F;             //0->4 flag
+    received_pck.pck_type = (buffer[0] >> 4) & 0x0F;  //4->7 control packet type
+    
+    //==============================Decode remaining package length=============================//
+    int multiplier = 1;
+    uint8_t encoded_byte;
+    int offset = 1; //start after 1st byte
+    for (int i = 0; i < 4; i++){ //encoded remaining bytes info takes max 4 bytes
+        encoded_byte = buffer[offset + i];
+        received_pck.remaining_len += (encoded_byte & 127) * multiplier;
+        multiplier *= 128;
+        if (multiplier > 128*128*128){
+            printf("Malformed Remaining Length\n");
+            return -1;
+        }
+        if ((encoded_byte & 128) == 0){ //if MSB=0 (128 = b'10000000')
+            offset += i + 1; //to know where variable header starts
+            break;
+        }
+    }
+    printf("Flag: %d || Package Type: %d || Remaining Length: %ld\n", received_pck.flag, received_pck.pck_type, received_pck.remaining_len);
 
-    switch (pck_type)
+    //=============Determine packet type received from a Client=================//
+    switch (received_pck.pck_type)
     {
-    case 1:
-        printf("received CONNECT Command\n");
-        if (flag != 0){ //must be 0 for CONNECT
+    case 1: //CONNECT
+        printf("CONNECT packet\n");
+        if (received_pck.flag != 0){ //flag must be 0 for CONNECT
             printf("Invalid flag for CONNECT\n");
             return -1;
         }
-        break;
+        //fill variable header
+        received_pck.variable_header = malloc(10); // Allocate 10 bytes (CONNECT variable header)
+        if (received_pck.variable_header == NULL) {
+            perror("Failed to allocate memory for variable header");
+            exit(EXIT_FAILURE);
+        }
+        memcpy(received_pck.variable_header, buffer + offset, 10); //copy 10 bytes from buffer starting at offset
+        
+        //compute payload len
+        received_pck.payload_len = received_pck.remaining_len - 10;
+
+        //fill payload
+        received_pck.payload = malloc(received_pck.payload_len); // Allocate 10 bytes (CONNECT variable header)
+        if (received_pck.payload == NULL) {
+            perror("Failed to allocate memory for payload");
+            exit(EXIT_FAILURE);
+        }
+        memcpy(received_pck.payload, buffer + offset + 10, received_pck.payload_len); //copy X bytes from buffer starting after variable header
+
+        return connect_handler(&received_pck, running_session); //interpret connect command
     
+    case 3: //PUBLISH
+        printf("PUBLISH packet\n");
+        return -1;
+    
+    case 4: //PUBLISH ACKNOWLEDGE
+        printf("PUBACK packet\n");
+        return -1;
+
+    case 8: //SUBSCRIBE
+        printf("SUBSCRIBE packet\n");
+        return -1;
+
     default:
         return -1;
-        break;
     }
     return 0;
 }
 
 
+int connect_handler(mqtt_pck *received_pck, session* running_session){
+    //check variable header
+    uint8_t expected_protocol[8] = {0x00, 0x04, 0x4D, 0x51, 0x54, 0x54, 0x04, 0x02}; //in this last byte we suppose only flag cleansSession = 1
+    if (memcmp(received_pck->variable_header, expected_protocol, 8) != 0){
+        printf("Invalid protocol\n");
+        return -1;
+    }
+    printf("Aaaaa\n");
+    
+    return -1;
+
+}
 
 
 

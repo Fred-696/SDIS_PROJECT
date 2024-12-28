@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/select.h>
@@ -25,17 +26,26 @@
 #define BUFFER_SIZE 1024
 
 typedef struct {
-    uint8_t flag;
+    //fixed header
     uint8_t pck_type;
-    uint8_t remaininglen [256]; //suppose 256 bytes
+    uint8_t flag;
+    ssize_t remaining_len;
+
+    //variable Header (depends on the packet type)
+    uint8_t *variable_header;
+
+    //payload
+    ssize_t payload_len;
+    uint8_t *payload;
 } mqtt_pck;
 
 
 typedef struct {
     int connfd;                   //connection file descriptor
     bool connected;               //connected or not
-    char topic[MAX_TOPICS][256];  //X topics of 256 bytes  
+    char topic[MAX_TOPICS][256];  //Client's subscripted topics (maximum all topics)
 
+    mqtt_pck packet;
 } session;
 
 #ifndef MQTT_RETURN_CODES_H
@@ -52,8 +62,8 @@ typedef struct {
 
 //function creates server at local ip and given port
 int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen);
-int mqtt_process_pck(uint8_t *buffer);
-
+int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session);
+int connect_handler(mqtt_pck *received_pck, session* running_session);
 
 
 //Function Prototypes
