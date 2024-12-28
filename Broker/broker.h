@@ -11,7 +11,9 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <errno.h>
+
 #include <fcntl.h>
+#include <pthread.h>
 
 #ifndef _ARPA_INET_H_
 #define _ARPA_INET_H_
@@ -26,6 +28,7 @@
 
 #define BUFFER_SIZE 1024
 
+//packet structure
 typedef struct {
     //fixed header
     uint8_t pck_type;
@@ -42,7 +45,7 @@ typedef struct {
     int conn_fd;                   //connection file descriptor
 } mqtt_pck;
 
-
+//session required arguments to save
 typedef struct {
     int conn_fd;                   //connection file descriptor
     int keepalive;                //time between finishing 1 package and next package, in seconds
@@ -53,6 +56,12 @@ typedef struct {
     mqtt_pck packet;
 } session;
 
+//for each thread
+typedef struct {
+    int conn_fd;
+    session *running_sessions;
+} thread_data;
+
 #ifndef MQTT_RETURN_CODES_H
 #define MQTT_RETURN_CODES_H
 
@@ -62,25 +71,17 @@ typedef struct {
 
 #endif // MQTT_RETURN_CODES_H
 
-
-
-
 //function creates server at local ip and given port
 int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen);
+//main loop function, for each thread
+void *client_handler(void *arg);
+//determine type of packet and process
 int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session);
-
+//handle(interprets) CONNECT packet
 int connect_handler(mqtt_pck *received_pck, session* running_session);
+//Prepares and sends connack package
 int send_connack(session* running_session, int return_code, int session_present);
+//Sends PingResp package(no need for handler before)
+int send_pingresp(mqtt_pck *received_pck);
 
-int ping_handler(mqtt_pck *received_pck);
 
-
-//Function Prototypes
-void handle_client(int client_socket);
-// void receive_publish(int client_socket);
-// void process_publish(const char *message);
-// void distribute_message(const char *topic, const char *message);
-// void receive_subscribe(int client_socket);
-// void process_subscribe(int client_socket, const char *message);
-// void add_subscription(int client_socket, const char *topic);
-// int is_subscribed(int client_socket, const char *topic);

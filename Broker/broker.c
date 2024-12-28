@@ -30,6 +30,39 @@ int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen) 
     return 0;
 }
 
+//main loop function, for each thread
+void *client_handler(void *arg) {
+    printf("Thread created\n");
+    thread_data *t_data = (thread_data *)arg; //cast to thread data type again
+    int conn_fd = t_data->conn_fd;
+    session *running_sessions = t_data->running_sessions;
+    free(t_data); //no longer needed, free
+
+    uint8_t buffer[BUFFER_SIZE] = {0};
+
+    // Handle client connection
+    while (1) {
+        ssize_t valread = read(conn_fd, buffer, BUFFER_SIZE);
+        if (valread <= 0) {
+            printf("Client disconnected: conn_fd: %d\n", conn_fd);
+            close(conn_fd);
+            pthread_exit(NULL);
+        }
+
+        mqtt_pck received_pck = {0};
+        received_pck.conn_fd = conn_fd;
+
+        // Process MQTT packet
+        if (mqtt_process_pck(buffer, received_pck, running_sessions) < 0) {
+            printf("MQTT Process Error\n");
+        }
+
+        usleep(10);
+    }
+    return NULL;
+}
+
+//determine type of packet and process
 int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session){
     //======================Analise Fixed Header 1st byte=======================================//
     received_pck.flag = buffer[0] & 0x0F;             //0->4 flag
@@ -99,14 +132,14 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
 
     case 12:
         printf("PING Request\n");
-        return ping_handler(&received_pck);
+        return send_pingresp(&received_pck);
     default:
         return -1;
     }
     return 0;
 }
 
-
+//handle(interprets) CONNECT packet
 int connect_handler(mqtt_pck *received_pck, session* running_session){
     int return_code = 0; 
     int session_present = 0;
@@ -135,7 +168,7 @@ int connect_handler(mqtt_pck *received_pck, session* running_session){
         if (running_session[i].client_id != NULL) {
             //compare existing session client_id with the received client_id
             if (strcmp(running_session[i].client_id, client_id) == 0) {
-                printf("Ongoing session found for client_id: %s at index %d\n", client_id, i);
+                printf("Ongoing session found for Client_ID: %s at index %d\n", client_id, i);
                 session_idx = i;
                 session_present = 1; // Mark session as present
                 break;
@@ -151,12 +184,13 @@ int connect_handler(mqtt_pck *received_pck, session* running_session){
     running_session[session_idx].conn_fd = received_pck->conn_fd;
     running_session[session_idx].keepalive = keepalive;
 
-    printf("Valid Protocol || Keepalive: %d || ClientID: %s || SessionIdx: %d\n", keepalive, client_id, session_idx);
+    printf("Valid Protocol || Keepalive: %d || Client_ID: %s || SessionIdx: %d\n", keepalive, client_id, session_idx);
 
     //assign the new connection to the corresponding session
     return send_connack(&running_session[session_idx], return_code, session_present);
 }
 
+//Prepares and sends connack package
 int send_connack(session* running_session, int return_code, int session_present) {
     uint8_t connack_packet[4];
 
@@ -175,7 +209,8 @@ int send_connack(session* running_session, int return_code, int session_present)
     return 0;
 }
 
-int ping_handler(mqtt_pck *received_pck) {
+//Sends PingResp package(no need for handler before)
+int send_pingresp(mqtt_pck *received_pck) {
     uint8_t ping_packet[2] = {0};
     ping_packet[0] = 0xd0; // PINGRESP fixed header
     ping_packet[1] = 0x00; // Remaining length
@@ -187,3 +222,8 @@ int ping_handler(mqtt_pck *received_pck) {
     printf("PINGRESP sent successfully\n");
     return 0;
 }
+
+
+
+
+int send_pck(mqtt_pck *package, session* running_session);
