@@ -52,7 +52,6 @@ int main() {
         if (running_session[session_id].connfd == 0) {
             printf("Assigning to session ID %d\n", session_id);
             running_session[session_id].connfd = connfd;
-            running_session[session_id].connected = true; //register session as connected
         }
 
         //read data from client

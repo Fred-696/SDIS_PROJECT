@@ -58,7 +58,7 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
     switch (received_pck.pck_type)
     {
     case 1: //CONNECT
-        printf("CONNECT packet\n");
+        printf("CONNECT Packet\n");
         if (received_pck.flag != 0){ //flag must be 0 for CONNECT
             printf("Invalid flag for CONNECT\n");
             return -1;
@@ -85,15 +85,15 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
         return connect_handler(&received_pck, running_session); //interpret connect command
     
     case 3: //PUBLISH
-        printf("PUBLISH packet\n");
+        printf("PUBLISH Packet\n");
         return -1;
     
     case 4: //PUBLISH ACKNOWLEDGE
-        printf("PUBACK packet\n");
+        printf("PUBACK Packet\n");
         return -1;
 
     case 8: //SUBSCRIBE
-        printf("SUBSCRIBE packet\n");
+        printf("SUBSCRIBE Packet\n");
         return -1;
 
     default:
@@ -104,34 +104,31 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
 
 
 int connect_handler(mqtt_pck *received_pck, session* running_session){
+    int return_code = 0; 
     //check variable header
-    uint8_t expected_protocol[8] = {0x00, 0x04, 0x4D, 0x51, 0x54, 0x54, 0x04, 0x02}; //in this last byte we suppose only flag cleansSession = 1
+    uint8_t expected_protocol[8] = {0x00, 0x04, 0x4D, 0x51, 0x54, 0x54, 0x04, 0x02};
     if (memcmp(received_pck->variable_header, expected_protocol, 8) != 0){
         printf("Invalid protocol\n");
-        return -1;
+        return_code = 1;
     }
-    printf("Aaaaa\n");
+    running_session->keepalive = received_pck->variable_header[9];
+    printf("Valid Protocol || Keepalive: %d\n", running_session->keepalive);
     
-    return -1;
+    //Check payload
+    return send_connack(running_session, return_code);
 
 }
 
-
-
-
-void send_connack(int client_socket, uint8_t session_present, uint8_t return_code) {
+int send_connack(session* running_session, int return_code) {
     uint8_t connack_packet[4];
 
-    // Fixed Header
+    //fixed Header
     connack_packet[0] = 0x20; // MQTT Control Packet (0010) || Reserved(0000)
     connack_packet[1] = 0x02; // Remaining Length (0000) || (0010)
 
-    // Variable Header
+    //variable Header
     connack_packet[2] = session_present & 0x01; // Reserved(0000) || SessionPresent(which is 1 or 0)
-    connack_packet[3] = return_code; // Connect Return Code (only 0x00 or 0x02)
-
-    // Send the packet
-    send(client_socket, connack_packet, 4, 0); //CONNACK allways has 4 bytes
+    connack_packet[3] = return_code; //Connect Return Code (only 0x00 or 0x01)
 }
 
 

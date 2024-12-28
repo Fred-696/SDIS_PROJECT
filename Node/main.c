@@ -6,7 +6,7 @@
 #include <mosquitto.h>
 
 #define ADDRESS "192.168.1.227"
-#define CLIENTID "2"
+#define CLIENTID "Node2"
 #define TOPIC "ButtonPress"
 #define PAYLOAD "B1"
 #define QOS 1

@@ -42,8 +42,9 @@ typedef struct {
 
 typedef struct {
     int connfd;                   //connection file descriptor
+    int keepalive;                //time between finishing 1 package and next package, in seconds
     bool connected;               //connected or not
-    char topic[MAX_TOPICS][256];  //Client's subscripted topics (maximum all topics)
+    char topic[MAX_TOPICS][256];  //Client's subscripted topics (at maximum all topics)
 
     mqtt_pck packet;
 } session;
@@ -64,6 +65,7 @@ typedef struct {
 int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen);
 int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session);
 int connect_handler(mqtt_pck *received_pck, session* running_session);
+int send_connack(session* running_session, int returncode);
 
 
 //Function Prototypes
