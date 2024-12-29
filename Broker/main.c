@@ -1,57 +1,46 @@
 #include "broker.h"
+//DEPOIS adicionar funcao para dar free da memoria alocado por malloc
 
 int main() {
-    int server_socket, max_sd;
+    int server_fd;
     struct sockaddr_in address;
     int addrlen = sizeof(address);
-    fd_set readfds;
-    int client_sockets[MAX_CLIENTS] = {0};
+    session running_sessions[MAX_CLIENTS] = {0};
 
-    // ============================Initialize broker server==================================//
-    server_socket = init_server_socket(BROKER_PORT);
-    // =====================================================================================//
-
-    // Escuta por conexões
-    if (listen(server_socket, 3) < 0) {
-        perror("listen");
+    if (create_tcpserver(&server_fd, &address, &addrlen) < 0) {
         exit(EXIT_FAILURE);
     }
-    
+
     while (1) {
-        FD_ZERO(&readfds);
-        FD_SET(server_socket, &readfds);
-        max_sd = server_socket;
+        int conn_fd = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
+        if (conn_fd < 0) {
+            perror("Connection accept error");
+            continue;
+        }
+        printf("New connection: conn_fd = %d\n", conn_fd);
 
-
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            int sd = client_sockets[i];
-            if (sd > 0) FD_SET(sd, &readfds);
-            if (sd > max_sd) max_sd = sd;
+        //allocate memory for thread data
+        thread_data *t_data = (thread_data *)malloc(sizeof(thread_data)); //memory size, then cast to needed type
+        if (!t_data) {
+            perror("Malloc failed");
+            close(conn_fd);
+            continue;
         }
 
-        // activity = select(max_sd + 1, &readfds, NULL, NULL, NULL);
+        t_data->conn_fd = conn_fd;
+        t_data->running_sessions = running_sessions;
 
-        if (FD_ISSET(server_socket, &readfds)) {
-            int new_socket = accept(server_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen);
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (client_sockets[i] == 0) {
-                    client_sockets[i] = new_socket;
-                    break;
-                }
-            }
+        //create a new thread for the client
+        pthread_t thread_id;
+        if (pthread_create(&thread_id, NULL, client_handler, (void *)t_data) != 0) { //cast to void type
+            perror("Thread creation failed");
+            free(t_data);
+            close(conn_fd);
+            continue;
         }
 
-        // for (int i = 0; i < MAX_CLIENTS; i++) {
-        //     int sd = client_sockets[i];
-        //     if (FD_ISSET(sd, &readfds)) {
-        //         // Verificar se é uma mensagem de publicação ou assinatura
-        //         // e chamar a função apropriada
-        //         printf("RECEBIDO\n");
-        //         receive_publish(sd);
-        //         receive_subscribe(sd);
-        //     }
-        // }
-
+        // Detach the thread so it cleans up automatically when done
+        pthread_detach(thread_id);
     }
 
     return 0;

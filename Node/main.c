@@ -1,99 +1,87 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "MQTTClient.h"
-
 #include <unistd.h>
+#include <pigpio.h>
+#include <mosquitto.h>
 
-#define ADDRESS     "tcp://172.23.104.195:1883"
-#define CLIENTID    "7"
-#define TOPIC       "Test"
-#define PAYLOAD     "Hello World"
-#define QOS         1
-#define TIMEOUT     10000L
+#define ADDRESS "192.168.1.227"
+#define CLIENTID "Node2"
+#define TOPIC "ButtonPress"
+#define PAYLOAD "B1"
+#define QOS 1
+#define BUTTON_GPIO 14
 
-MQTTClient_deliveryToken deliveredtoken;
+struct mosquitto *client;
 
-void delivered(void *context, MQTTClient_deliveryToken dt){
-    printf("Message with token value %d delivery confirmed\n", dt);
-    deliveredtoken = dt;
-}
-
-int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *message){
-    printf("Message arrived\n");
-    printf("topic: %s\n", topicName);
-    printf("message: %.*s\n", message->payloadlen, (char*)message->payload);
-    MQTTClient_freeMessage(&message);
-    MQTTClient_free(topicName);
-    return 1;
-}
-
-void connlost(void *context, char *cause){
-    printf("\nConnection lost\n");
-    if (cause){
-    	printf("cause: %s\n", cause);
+void on_connect(struct mosquitto *client, void *userdata, int rc) {
+    if (rc == 0) {
+        printf("Connected to MQTT broker.\n");
+    } else {
+        fprintf(stderr, "Connection failed with code %d.\n", rc);
     }
 }
 
-int main(int argc, char* argv[]){
-    MQTTClient client;
-    MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
-    MQTTClient_message pubmsg = MQTTClient_message_initializer;
-    MQTTClient_deliveryToken token;
+void on_publish(struct mosquitto *client, void *userdata, int mid) {
+    printf("Message published (mid=%d).\n", mid);
+}
+
+int main(int argc, char *argv[]) {
     int rc;
 
-    if ((rc = MQTTClient_create(&client, ADDRESS, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS){
-        printf("Failed to create client, return code %d\n", rc);
-        rc = EXIT_FAILURE;
-        goto exit;
+    // Initialize pigpio
+    if (gpioInitialise() < 0) {
+        fprintf(stderr, "Failed to initialize pigpio\n");
+        return EXIT_FAILURE;
+    }
+    gpioSetMode(BUTTON_GPIO, PI_INPUT);
+    gpioSetPullUpDown(BUTTON_GPIO, PI_PUD_UP);
+
+    // Initialize Mosquitto
+    mosquitto_lib_init();
+    client = mosquitto_new(CLIENTID, true, NULL);
+    if (!client) {
+        fprintf(stderr, "Failed to create Mosquitto client.\n");
+        return EXIT_FAILURE;
     }
 
-    if ((rc = MQTTClient_setCallbacks(client, NULL, connlost, msgarrvd, delivered)) != MQTTCLIENT_SUCCESS){
-        printf("Failed to set callbacks, return code %d\n", rc);
-        rc = EXIT_FAILURE;
-        goto destroy_exit;
+    // Set callbacks
+    mosquitto_connect_callback_set(client, on_connect);
+    mosquitto_publish_callback_set(client, on_publish);
+
+    // Connect to the broker
+    if (mosquitto_connect(client, ADDRESS, 1883, 20) != MOSQ_ERR_SUCCESS) {
+        fprintf(stderr, "Failed to connect to broker.\n");
+        mosquitto_destroy(client);
+        mosquitto_lib_cleanup();
+        return EXIT_FAILURE;
     }
 
-    conn_opts.keepAliveInterval = 20;
-    conn_opts.cleansession = 1;
-    if ((rc = MQTTClient_connect(client, &conn_opts)) != MQTTCLIENT_SUCCESS){
-        printf("Failed to connect, return code %d\n", rc);
-        rc = EXIT_FAILURE;
-        goto destroy_exit;
+    // Start event loop
+    if (mosquitto_loop_start(client) != MOSQ_ERR_SUCCESS) {
+        fprintf(stderr, "Failed to start event loop.\n");
+        mosquitto_destroy(client);
+        mosquitto_lib_cleanup();
+        return EXIT_FAILURE;
     }
 
-    pubmsg.payload = PAYLOAD;
-    pubmsg.payloadlen = (int)strlen(PAYLOAD);
-    pubmsg.qos = QOS;
-    pubmsg.retained = 0;
-    deliveredtoken = 0;
-    if ((rc = MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token)) != MQTTCLIENT_SUCCESS){
-    	printf("Failed to publish message, return code %d\n", rc);
-    	rc = EXIT_FAILURE;
-    }
-    else{
-    	printf("Waiting for publication of %s\n"
-            "on topic %s for client with ClientID: %s\n",
-            PAYLOAD, TOPIC, CLIENTID);
-    	while (deliveredtoken != token)
-    	{
-			#if defined(_WIN32)
-				Sleep(100);
-			#else
-				usleep(10000L);
-			#endif
-    	}
+    printf("Monitoring button on GPIO %d...\n", BUTTON_GPIO);
+    while (1) {
+        if (gpioRead(BUTTON_GPIO) == 0) {
+            rc = mosquitto_publish(client, NULL, TOPIC, strlen(PAYLOAD), PAYLOAD, QOS, false);
+            if (rc != MOSQ_ERR_SUCCESS) {
+                fprintf(stderr, "Failed to publish: %s\n", mosquitto_strerror(rc));
+            } else {
+                printf("Button pressed! Message published: %s\n", PAYLOAD);
+            }
+            while (gpioRead(BUTTON_GPIO) == 0) { usleep(5000); } // Debounce
+        }
+        usleep(10000); // Prevent CPU overload
     }
 
-    if ((rc = MQTTClient_disconnect(client, 10000)) != MQTTCLIENT_SUCCESS)
-    {
-    	printf("Failed to disconnect, return code %d\n", rc);
-    	rc = EXIT_FAILURE;
-    }
-
-destroy_exit:
-    MQTTClient_destroy(&client);
-
-exit:
-    return rc;
+    mosquitto_disconnect(client);
+    mosquitto_destroy(client);
+    mosquitto_lib_cleanup();
+    gpioTerminate();
+    return 0;
 }

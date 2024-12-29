@@ -1,18 +1,20 @@
-Veio daqui
-
-https://www.hivemq.com/blog/implementing-mqtt-in-c/
-
-do
+Required to run Node:
 
 ```
 sudo apt-get update
 sudo apt install gcc
 sudo apt install make
-sudo apt-get install cmake  --> maybe not needed
-sudo apt-get install libssl-dev
+sudo apt install libmosquitto-dev
 
-git clone https://github.com/eclipse-paho/paho.mqtt.c.git
-cd paho.mqtt.c
-make
-sudo make install
+sudo apt install pigpio
+```
+
+Alternative quick connect-conack-subscribe-suback
+```
+mosquitto_sub -h 192.168.1.227 -p 1883 -t "test/topic"
+```
+
+Alternative quick connect-conack-publish-puback
+```
+mosquitto_pub -h 192.168.1.227 -p 1883 -t "test/topic" -m "Hello, broker!"
 ```

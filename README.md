@@ -27,3 +27,11 @@ MQTT Clients → 2 PCs + 2 microcontrollers (Esp32 and Esp8266)
 
 Figure 1- Diagram of the desired MQTT broker at the end of the project with example topics
 
+
+
+################################################################
+
+To implement
+
+CONNACK
+SUBACK
