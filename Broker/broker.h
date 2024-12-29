@@ -49,10 +49,10 @@ typedef struct {
 typedef struct {
     int conn_fd;                   //connection file descriptor
     int keepalive;                //time between finishing 1 package and next package, in seconds
-    bool connected;               //connected or not
     char topic[MAX_TOPICS][256];  //Client's subscripted topics (at maximum all topics)
 
     char* client_id;
+    int lastmessagecode; //meger nome igual ao protocolo
     mqtt_pck packet;
 } session;
 

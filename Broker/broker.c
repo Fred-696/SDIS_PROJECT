@@ -223,6 +223,12 @@ int send_pingresp(mqtt_pck *received_pck) {
     return 0;
 }
 
+// int publish_handler
+///////////////////////////////////////// int puback_handler
+// int subscribe_handler
+// int send_suback
+///////////////////////////////////////// int send_puback
+// int send_publish
 
 
 
