@@ -8,3 +8,13 @@ sudo apt install libmosquitto-dev
 
 sudo apt install pigpio
 ```
+
+Alternative quick connect-conack-subscribe-suback
+```
+mosquitto_sub -h 192.168.1.227 -p 1883 -t "test/topic"
+```
+
+Alternative quick connect-conack-publish-puback
+```
+mosquitto_pub -h 192.168.1.227 -p 1883 -t "test/topic" -m "Hello, broker!"
+```
