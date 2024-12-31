@@ -1,11 +1,30 @@
+#include <signal.h>
 #include "broker.h"
-//DEPOIS adicionar funcao para dar free da memoria alocado por malloc
+
+//declare the server_fd as a global variable so the signal handler can access it
+int server_fd;
+
+//signal handler function(CHATGPT), for ctrl+C cancelation closing socket
+void handle_sigint(int sig) {
+    printf("\nCaught signal %d, shutting down gracefully...\n", sig);
+
+    // Close the server socket
+    if (server_fd > 0) {
+        close(server_fd);
+    }
+
+    // Perform other cleanup tasks if necessary
+
+    exit(EXIT_SUCCESS);
+}
 
 int main() {
-    int server_fd;
     struct sockaddr_in address;
     int addrlen = sizeof(address);
     session running_sessions[MAX_CLIENTS] = {0};
+
+    //register the SIGINT signal handler(CHATGPT)
+    signal(SIGINT, handle_sigint);
 
     if (create_tcpserver(&server_fd, &address, &addrlen) < 0) {
         exit(EXIT_FAILURE);

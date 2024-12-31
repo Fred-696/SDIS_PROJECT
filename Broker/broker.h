@@ -83,5 +83,7 @@ int connect_handler(mqtt_pck *received_pck, session* running_session);
 int send_connack(session* running_session, int return_code, int session_present);
 //Sends PingResp package(no need for handler before)
 int send_pingresp(mqtt_pck *received_pck);
+//handle(interprets) PUBISH packet
+int publish_handler(mqtt_pck *received_pck, session* running_session);
 
-
+int send_pck(mqtt_pck *package);
