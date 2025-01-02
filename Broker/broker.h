@@ -75,6 +75,12 @@ typedef struct {
 int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen);
 //main loop function, for each thread
 void *client_handler(void *arg);
+//function to decode the remaining length
+int decode_remaining_length(uint8_t *buffer, uint8_t *remaining_length, int *offset);
+//function to encode the remaining length
+int encode_remaining_length(uint8_t *buffer, size_t remaining_len);
+//function to easily made package(only fill a variable of type structure mqtt_pck)
+int send_pck(mqtt_pck *package);
 //determine type of packet and process
 int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session);
 //handle(interprets) CONNECT packet
