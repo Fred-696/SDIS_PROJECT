@@ -92,4 +92,3 @@ int send_pingresp(mqtt_pck *received_pck);
 //handle(interprets) PUBISH packet
 int publish_handler(mqtt_pck *received_pck, session* running_session);
 
-int send_pck(mqtt_pck *package);
