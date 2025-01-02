@@ -16,5 +16,5 @@ mosquitto_sub -h 192.168.1.227 -p 1883 -t "test/topic" -q 1
 
 Alternative quick connect-conack-publish-puback
 ```
-mosquitto_pub -h 192.168.1.227 -p 1883 -t "test/topic" -m "Hello, broker!" -q 1
+mosquitto_pub -h 192.168.1.227 -p 1883 -t "test/topic" -m "Hello, broker!" -q 1 -d
 ```

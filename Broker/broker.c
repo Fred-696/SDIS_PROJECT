@@ -8,6 +8,14 @@ int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen) 
         return -1;
     }
 
+    int opt = 1;
+    //set SO_REUSEADDR to allow reusing the address to avoid init errors
+    if (setsockopt(*server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+        perror("setsockopt failed");
+        close(*server_fd);
+        return -1;
+    }
+
     //setup address
     address->sin_family = AF_INET;            //address family to IPv4
     address->sin_addr.s_addr = INADDR_ANY;    //accepting connectons on any available interface
@@ -44,7 +52,7 @@ void *client_handler(void *arg) {
     while (1) {
         ssize_t valread = read(conn_fd, buffer, BUFFER_SIZE);
         if (valread <= 0) {
-            printf("Client disconnected: conn_fd: %d\n", conn_fd);
+            printf("Client disconnected: conn_fd: %d | forcing connection close\n", conn_fd);
             close(conn_fd);
             pthread_exit(NULL);
         }
@@ -56,7 +64,7 @@ void *client_handler(void *arg) {
         if (mqtt_process_pck(buffer, received_pck, running_sessions) < 0) {
             printf("MQTT Process Error\n");
         }
-
+        printf("|||||||||||||||||||||||\n");
         usleep(10);
     }
     return NULL;
@@ -67,7 +75,7 @@ int decode_remaining_length(uint8_t *buffer, uint8_t *remaining_length, int *off
     int multiplier = 1;
     uint8_t encoded_byte;
     *remaining_length = 0;
-    *offset = 1; //
+    *offset = 1;
     for (int i = 0; i < 4; i++) { //remaining Length can take up to 4 bytes
         encoded_byte = buffer[*offset];
         *remaining_length += (encoded_byte & 127) * multiplier;
@@ -189,15 +197,16 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
             return -1;
         }
         //fill variable header
-        received_pck.variable_header = malloc(10); //allocate 10 bytes (CONNECT variable header)
+        received_pck.variable_len = 10;
+        received_pck.variable_header = malloc(received_pck.variable_len); //allocate 10 bytes (CONNECT variable header)
         if (received_pck.variable_header == NULL) {
             perror("Failed to allocate memory for variable header");
             exit(EXIT_FAILURE);
         }
-        memcpy(received_pck.variable_header, buffer + offset, 10); //copy 10 bytes from buffer starting at offset
+        memcpy(received_pck.variable_header, buffer + offset, received_pck.variable_len); //copy 10 bytes from buffer starting at offset
         
         //compute payload len
-        received_pck.payload_len = received_pck.remaining_len - 10;
+        received_pck.payload_len = received_pck.remaining_len - received_pck.variable_len;
 
         //fill payload
         received_pck.payload = malloc(received_pck.payload_len); //allocate 10 bytes (CONNECT variable header)
@@ -205,30 +214,33 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
             perror("Failed to allocate memory for payload");
             exit(EXIT_FAILURE);
         }
-        memcpy(received_pck.payload, buffer + offset + 10, received_pck.payload_len); //copy X bytes from buffer starting after variable header
+        memcpy(received_pck.payload, buffer + offset + received_pck.variable_len, received_pck.payload_len); //copy X bytes from buffer starting after variable header
 
         return connect_handler(&received_pck, running_session); //interpret connect command
     
     case 3: //PUBLISH
         printf("PUBLISH\n");
         //fill variable header
-        received_pck.variable_header = malloc(7); //allocate 7 bytes (PUBLISH variable header)
+        received_pck.topic_len = (buffer[offset] << 8) | buffer[offset + 1];
+        received_pck.variable_len = received_pck.topic_len + 4;
+
+        received_pck.variable_header = malloc(received_pck.variable_len); //allocate bytes (PUBLISH variable header)
         if (received_pck.variable_header == NULL) {
             perror("Failed to allocate memory for variable header");
             exit(EXIT_FAILURE);
         }
-        memcpy(received_pck.variable_header, buffer + offset, 10); //copy 7 bytes from buffer starting at offset
+        memcpy(received_pck.variable_header, buffer + offset, received_pck.variable_len); //copy bytes from buffer starting at offset
         
         //compute payload len
-        received_pck.payload_len = received_pck.remaining_len - 10;
+        received_pck.payload_len = received_pck.remaining_len - received_pck.variable_len;
 
         //fill payload
-        received_pck.payload = malloc(received_pck.payload_len); //allocate 10 bytes (CONNECT variable header)
+        received_pck.payload = malloc(received_pck.payload_len); //allocate bytes (PUBLISH variable header)
         if (received_pck.payload == NULL) {
             perror("Failed to allocate memory for payload");
             exit(EXIT_FAILURE);
         }
-        memcpy(received_pck.payload, buffer + offset + 7, received_pck.payload_len); //copy X bytes from buffer starting after variable header
+        memcpy(received_pck.payload, buffer + offset + received_pck.variable_len, received_pck.payload_len); //copy X bytes from buffer starting after variable header
 
         return publish_handler(&received_pck, running_session); //interpret publish command
     
@@ -243,38 +255,21 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
     case 12:
         printf("PING Request\n");
         return send_pingresp(&received_pck);
+
+    case 14:
+        printf("DISCONNECT\n");
+        return disconnect_handler(running_session);
     default:
         return -1;
     }
     return 0;
 }
 
-//Prepares and sends connack package
-int send_connack(session* running_session, int return_code, int session_present) {
-    mqtt_pck connack_packet;
-
-    //fixed Header
-    connack_packet.flag = 0;
-    connack_packet.pck_type = 2;
-    connack_packet.remaining_len = 2;
-
-    //variable Header
-    connack_packet.variable_header = malloc(2); //allocate 7 bytes (PUBLISH variable header)
-    connack_packet.variable_header[0] = session_present & 0x01; // Reserved(0000) || SessionPresent(which is 1 or 0)
-    connack_packet.variable_header[1] = return_code; //Connect Return Code (only 0x00 or 0x01)
-
-    //payload
-    connack_packet.payload_len = 0; //n payload
-    connack_packet.payload = NULL;  //set pointer to NULL
-
-    //conn_fd
-    connack_packet.conn_fd = running_session->conn_fd;
-    if (send_pck(&connack_packet) < 0){
-        printf("Failed to send CONNACK\n");
-        return -1;
-    }
-    printf("CONNACK sent successfully\n");
-    return 0;
+//disconnects client properly
+int disconnect_handler(session* running_session){
+    printf("Client with conn_fd: %d || Client_ID: '%s' disconnected\n", running_session->conn_fd, running_session->client_id);
+    close(running_session->conn_fd);
+    pthread_exit(NULL);
 }
 
 //handle(interprets) CONNECT packet
@@ -328,6 +323,40 @@ int connect_handler(mqtt_pck *received_pck, session* running_session){
     return send_connack(&running_session[session_idx], return_code, session_present);
 }
 
+//Prepares and sends connack package
+int send_connack(session* running_session, int return_code, int session_present) {
+    mqtt_pck connack_packet;
+
+    //fixed Header
+    connack_packet.flag = 0;
+    connack_packet.pck_type = 2;
+    connack_packet.remaining_len = 2;
+
+    //variable Header
+    connack_packet.variable_header = malloc(2); //allocate 7 bytes (PUBLISH variable header)
+    if (!connack_packet.variable_header) {
+        perror("Failed to allocate memory for CONNACK variable header");
+        return -1;
+    }
+    connack_packet.variable_header[0] = session_present & 0x01; // Reserved(0000) || SessionPresent(which is 1 or 0)
+    connack_packet.variable_header[1] = return_code; //Connect Return Code (only 0x00 or 0x01)
+
+    //payload
+    connack_packet.payload_len = 0; //n payload
+    connack_packet.payload = NULL;  //set pointer to NULL
+
+    //conn_fd
+    connack_packet.conn_fd = running_session->conn_fd;
+    if (send_pck(&connack_packet) < 0){
+        printf("Failed to send CONNACK\n");
+        free(connack_packet.variable_header);
+        return -1;
+    }
+    printf("CONNACK sent successfully\n");
+    return 0;
+}
+
+
 //Sends PingResp package(no need for handler before)
 int send_pingresp(mqtt_pck *received_pck) {
     mqtt_pck pingresp_packet;
@@ -356,16 +385,85 @@ int send_pingresp(mqtt_pck *received_pck) {
     return 0;
 }
 
+//handle(interprets) PUBISH packet
+int publish_handler(mqtt_pck *received_pck, session* running_session){
+    int Retain = received_pck->flag & 0x01;
+    if (Retain != 0){
+        printf("invalid Retain\n");
+    }
+    int QOS_lvl = (received_pck->flag >> 1) & 0x03;
+    if (QOS_lvl !=1){
+        printf("invalid QOS level\n");
+    }
+
+    //check if its first time the client sent the message
+    int DUP = (received_pck->flag >> 3) & 0x01;
+
+    char topic[received_pck->topic_len + 1];
+
+    memcpy(topic, received_pck->variable_header + 2, received_pck->topic_len);
+    topic[received_pck->topic_len] = '\0';
+
+    printf("Topic: %s\n", topic);
+
+    int pck_id_offset = 2 + received_pck->topic_len;
+    int pck_id = (received_pck->variable_header[pck_id_offset] << 8) |
+                 received_pck->variable_header[pck_id_offset + 1];
+    
+    printf("DUP: %d || Topic: '%s' || Packet_ID: %d\n", DUP, topic, pck_id);
+    // verify it wasn't received before
+    if (pck_id != running_session->last_pck_id){
+        printf("New message to publish\n");
+        running_session->last_pck_id = pck_id;
+        running_session->last_pck = *received_pck;
+        //find subscripted clients
+
+
+
+
+    }
+    else {
+        printf("duplicated message\n");
+        return 0;
+    }
+    return send_puback(running_session, pck_id);
+}
+
+int send_puback(session* running_session, int pck_id){
+    mqtt_pck puback_packet;
+
+    //fixed Header
+    puback_packet.flag = 0;
+    puback_packet.pck_type = 4;
+    puback_packet.remaining_len = 2;
+
+    //variable Header
+    puback_packet.variable_header = malloc(2); //allocate 7 bytes (PUBLISH variable header)
+    if (!puback_packet.variable_header) {
+        perror("Failed to allocate memory for PUBACK variable header");
+        return -1;
+    }
+    puback_packet.variable_header[0] = (pck_id >> 8) & 0xFF; // MSB of pck_id
+    puback_packet.variable_header[1] = pck_id & 0xFF;        // LSB of pck_id
+
+    //payload
+    puback_packet.payload_len = 0; //n payload
+    puback_packet.payload = NULL;  //set pointer to NULL
+
+    //conn_fd
+    puback_packet.conn_fd = running_session->conn_fd;
+    if (send_pck(&puback_packet) < 0){
+        printf("Failed to send PUBACK\n");
+        free(puback_packet.variable_header);
+        return -1;
+    }
+    printf("PUBACK sent successfully\n");
+    return 0;
+}
+
 // int publish_handler
 ///////////////////////////////////////// int puback_handler
 // int subscribe_handler
 // int send_suback
 ///////////////////////////////////////// int send_puback
 // int send_publish
-
-//handle(interprets) PUBISH packet
-int publish_handler(mqtt_pck *received_pck, session* running_session){
-    int QOS_lvl = (received_pck->flag >> 1) & 0x03;
-    printf("QOS_lvl = %d\n", QOS_lvl);
-    return -1;
-}

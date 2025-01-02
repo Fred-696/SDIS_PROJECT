@@ -36,6 +36,8 @@ typedef struct {
     ssize_t remaining_len;
 
     //variable Header (depends on the packet type)
+    ssize_t topic_len;
+    ssize_t variable_len;
     uint8_t *variable_header;
 
     //payload
@@ -52,8 +54,8 @@ typedef struct {
     char topic[MAX_TOPICS][256];  //Client's subscripted topics (at maximum all topics)
 
     char* client_id;
-    int lastmessagecode; //meger nome igual ao protocolo
-    mqtt_pck packet;
+    int last_pck_id; //meger nome igual ao protocolo
+    mqtt_pck last_pck;
 } session;
 
 //for each thread
@@ -83,6 +85,8 @@ int encode_remaining_length(uint8_t *buffer, size_t remaining_len);
 int send_pck(mqtt_pck *package);
 //determine type of packet and process
 int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session);
+//disconnects client properly
+int disconnect_handler(session* running_session);
 //handle(interprets) CONNECT packet
 int connect_handler(mqtt_pck *received_pck, session* running_session);
 //Prepares and sends connack package
@@ -91,4 +95,5 @@ int send_connack(session* running_session, int return_code, int session_present)
 int send_pingresp(mqtt_pck *received_pck);
 //handle(interprets) PUBISH packet
 int publish_handler(mqtt_pck *received_pck, session* running_session);
-
+//send puback
+int send_puback(session* running_session, int pck_id);
