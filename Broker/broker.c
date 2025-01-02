@@ -62,31 +62,29 @@ void *client_handler(void *arg) {
     return NULL;
 }
 
-// Function to decode the Remaining Length
+//function to decode the Remaining Length
 int decode_remaining_length(uint8_t *buffer, uint8_t *remaining_length, int *offset) {
     int multiplier = 1;
     uint8_t encoded_byte;
     *remaining_length = 0;
-    *offset = 1; // Start after the first byte (fixed header byte)
-
-    for (int i = 0; i < 4; i++) { // Remaining Length can take up to 4 bytes
+    *offset = 1; //
+    for (int i = 0; i < 4; i++) { //remaining Length can take up to 4 bytes
         encoded_byte = buffer[*offset];
         *remaining_length += (encoded_byte & 127) * multiplier;
         multiplier *= 128;
 
-        if (multiplier > 128 * 128 * 128) { // Malformed packet check
+        if (multiplier > 128 * 128 * 128) { //malformed packet check
             printf("Malformed Remaining Length\n");
             return -1;
         }
 
         (*offset)++;
 
-        if ((encoded_byte & 128) == 0) { // MSB = 0 indicates end of length encoding
+        if ((encoded_byte & 128) == 0) { //MSB = 0 indicates end of length encoding
             break;
         }
     }
-
-    return 0; // Successfully decoded
+    return 0; 
 }
 
 
@@ -100,7 +98,7 @@ int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_se
     int offset = 1;
     uint8_t remaining_length;
     if (decode_remaining_length(buffer, &remaining_length, &offset) < 0) {
-        return -1; // Error decoding Remaining Length
+        return -1; //error decoding Remaining Length
     }
     received_pck.remaining_len = remaining_length;
     printf("Flag: %d || Package Type: %d || Remaining Length: %ld\n", received_pck.flag, received_pck.pck_type, received_pck.remaining_len);
@@ -278,10 +276,24 @@ int send_connack(session* running_session, int return_code, int session_present)
 
 //Sends PingResp package(no need for handler before)
 int send_pingresp(mqtt_pck *received_pck) {
-    uint8_t ping_packet[2] = {0};
-    ping_packet[0] = 0xd0; // PINGRESP fixed header
-    ping_packet[1] = 0x00; // Remaining length
-    if (send(received_pck->conn_fd, ping_packet, sizeof(ping_packet), 0) < 0) {
+    mqtt_pck pingresp_packet;
+
+    //fixed Header
+    pingresp_packet.flag = 0;
+    pingresp_packet.pck_type = 13; //PINGRESP packet type
+    pingresp_packet.remaining_len = 0; //remaining length is 0
+
+    //no Variable Header
+    pingresp_packet.variable_header = NULL;
+
+    //no Payload
+    pingresp_packet.payload = NULL;
+    pingresp_packet.payload_len = 0;
+
+    //connection file descriptor
+    pingresp_packet.conn_fd = received_pck->conn_fd;
+
+    if (send_pck(&pingresp_packet) < 0) {
         perror("Failed to send PING packet");
         return -1;
     }
@@ -297,21 +309,13 @@ int send_pingresp(mqtt_pck *received_pck) {
 ///////////////////////////////////////// int send_puback
 // int send_publish
 
-
-
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <stdio.h>
-
 int encode_remaining_length(uint8_t *buffer, size_t remaining_len) {
     int bytes_written = 0;
 
     do {
         uint8_t encoded_byte = remaining_len % 128;
         remaining_len /= 128;
-        //i there is more data to encode, set the continuation bit (MSB = 1)
+        //if there is more data to encode, set the continuation bit (MSB = 1)
         if (remaining_len > 0) {
             encoded_byte |= 128;
         }
@@ -347,27 +351,26 @@ int send_pck(mqtt_pck *package) {
         return -1;
     }
 
-    // Serialize the Fixed Header
+    //get offset
     size_t offset = 0;
-    buffer[offset++] = (package->pck_type << 4) | (package->flag & 0x0F); // Packet Type and Flags
+    buffer[offset++] = (package->pck_type << 4) | (package->flag & 0x0F); //packet Type and flags
 
-    // Serialize the Remaining Length
     memcpy(&buffer[offset], remaining_length_encoded, remaining_length_size);
     offset += remaining_length_size;
 
-    // Serialize the Variable Header
+    //serialize the Variable Header
     if (package->variable_header) {
         memcpy(&buffer[offset], package->variable_header, package->remaining_len);
         offset += package->remaining_len;
     }
 
-    // Serialize the Payload
+    //serialize the Payload
     if (package->payload) {
         memcpy(&buffer[offset], package->payload, package->payload_len);
         offset += package->payload_len;
     }
 
-    // Send the serialized packet
+    //send the serialized packet
     ssize_t bytes_sent = send(package->conn_fd, buffer, offset, 0);
     if (bytes_sent < 0) {
         perror("Failed to send packet");
@@ -375,7 +378,7 @@ int send_pck(mqtt_pck *package) {
         return -1;
     }
 
-    // Clean up
+    //clean up
     free(buffer);
     return 0;
 }
