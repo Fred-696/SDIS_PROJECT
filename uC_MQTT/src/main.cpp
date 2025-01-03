@@ -3,11 +3,11 @@
 #include <PubSubClient.h>
 
 // Wi-Fi settings
-const char* ssid =  "Xiaomi Fred";                //"Vodafone-C27E8D";
-const char* password = "123456789";
+const char* ssid =  "Vodafone-BA4038";            //"Xiaomi Fred";                //"Vodafone-C27E8D";
+const char* password = "yGDfVSD2yZ";
 
 // MQTT settings
-const char* mqtt_server = "192.168.5.200"; // Replace with your broker's IP
+const char* mqtt_server = "192.168.1.85"; // Replace with your broker's IP
 const char* mqtt_topic_pub = "sensor/temperature";
 const char* mqtt_topic_sub = "test/topic";
 
