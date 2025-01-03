@@ -38,6 +38,9 @@ typedef struct {
     //variable Header (depends on the packet type)
     uint8_t *variable_header;
 
+    //packet id
+    uint16_t packet_id;
+
     //payload
     ssize_t payload_len;
     uint8_t *payload;
@@ -75,8 +78,7 @@ typedef struct {
 int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen);
 //main loop function, for each thread
 void *client_handler(void *arg);
-//determine type of packet and process
-int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session);
+
 //handle(interprets) CONNECT packet
 int connect_handler(mqtt_pck *received_pck, session* running_session);
 //Prepares and sends connack package
@@ -84,4 +86,10 @@ int send_connack(session* running_session, int return_code, int session_present)
 //Sends PingResp package(no need for handler before)
 int send_pingresp(mqtt_pck *received_pck);
 
+// Send SUBACK response
+int return_suback(mqtt_pck *received_pck, session *running_session, int num_topics);
+//handle SUBSCRIBE packet
+int sub_handler(mqtt_pck *received_pck, session* running_session);
 
+//determine type of packet and process
+int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session);
