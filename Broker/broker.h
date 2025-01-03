@@ -45,6 +45,8 @@ typedef struct {
     uint8_t *payload;
 
     int conn_fd;                   //connection file descriptor
+
+    int pck_id;
 } mqtt_pck;
 
 //session required arguments to save
@@ -54,8 +56,8 @@ typedef struct {
     char topic[MAX_TOPICS][256];  //Client's subscripted topics (at maximum all topics)
 
     char* client_id;
-    int last_pck_id; //meger nome igual ao protocolo
-    mqtt_pck last_pck;
+    int last_pck_received_id; //meger nome igual ao protocolo
+    mqtt_pck pck_to_send;
 } session;
 
 //for each thread
@@ -84,16 +86,22 @@ int encode_remaining_length(uint8_t *buffer, size_t remaining_len);
 //function to easily made package(only fill a variable of type structure mqtt_pck)
 int send_pck(mqtt_pck *package);
 //determine type of packet and process
-int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_session);
+int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_sessions);
 //disconnects client properly
-int disconnect_handler(session* running_session);
+int disconnect_handler(mqtt_pck *received_pck, session* running_sessions);
 //handle(interprets) CONNECT packet
-int connect_handler(mqtt_pck *received_pck, session* running_session);
+int connect_handler(mqtt_pck *received_pck, session* running_sessions);
 //Prepares and sends connack package
-int send_connack(session* running_session, int return_code, int session_present);
+int send_connack(session* current_session, int return_code, int session_present);
 //Sends PingResp package(no need for handler before)
 int send_pingresp(mqtt_pck *received_pck);
 //handle(interprets) PUBISH packet
-int publish_handler(mqtt_pck *received_pck, session* running_session);
+int publish_handler(mqtt_pck *received_pck, session* running_sessions);
+//send publish
+int send_publish(mqtt_pck *received_pck, session* running_session);
 //send puback
-int send_puback(session* running_session, int pck_id);
+int send_puback(session* current_session, int pck_id);
+//handle SUBSCRIBE packet
+int subscribe_handler(mqtt_pck *received_pck, session* running_sessions);
+//send SUBACK response
+int send_suback(session *current_session, int pck_id, int num_topics);
