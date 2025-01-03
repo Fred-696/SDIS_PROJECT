@@ -252,7 +252,7 @@ int send_pingresp(mqtt_pck *received_pck) {
 }
 
 // Send SUBACK response
-int return_suback(mqtt_pck *received_pck, session *running_session, int num_topics) {
+int send_suback(mqtt_pck *received_pck, session *running_session, int num_topics, uint8_t *topic_qos)  {
     uint8_t suback_packet[4 + num_topics]; // Fixed header (2 bytes) + Variable header (2 bytes) + Payload (num_topics bytes)
 
     // Fixed Header
@@ -265,7 +265,7 @@ int return_suback(mqtt_pck *received_pck, session *running_session, int num_topi
 
     // Payload
     for (int i = 0; i < num_topics; i++) {
-        suback_packet[4 + i] = 0x01; // QoS 1
+        suback_packet[4 + i] = topic_qos[i]; // QoS level for each topic
     }
 
     // Debugging output
@@ -295,8 +295,10 @@ int sub_handler(mqtt_pck *received_pck, session* running_session){
     printf("Packet ID: %d\n", packet_id);
 
     // Process the payload
+    // Process the payload
     int offset = 0;
     int num_topics = 0;
+    uint8_t topic_qos[MAX_TOPICS];
 
 
     while (offset < received_pck->payload_len) {
@@ -310,11 +312,10 @@ int sub_handler(mqtt_pck *received_pck, session* running_session){
         topic[topic_len] = '\0';  // '\0' in last byte ##############################
         offset += topic_len;
         
-        // Ignore topic if QoS is not 1
-        if (received_pck->payload[offset] != 1) {
-            printf("Ignoring topic %s with QoS %d\n", topic, received_pck->payload[offset]);
-            continue;
-        }
+        // QoS level
+        uint8_t qos = received_pck->payload[offset];
+        topic_qos[num_topics] = qos; // Store QoS of topic for SUBACK response
+
         offset += 1;
 
         // Check if the topic already exists
@@ -332,7 +333,8 @@ int sub_handler(mqtt_pck *received_pck, session* running_session){
             for (int i = 0; i < MAX_TOPICS; i++) {
                 if (running_session->topic[i][0] == '\0') { // Find an empty slot
                     strncpy(running_session->topic[i], topic, sizeof(running_session->topic[i]) - 1);
-                    printf("Topic: %s stored in the session\n", topic);
+                    running_session->topic[i][sizeof(running_session->topic[i]) - 1] = '\0'; // Ensure null-termination
+                    printf("Topic: %s stored in the session with QoS %d\n", topic, qos);
                     break;
                 }
             }
@@ -342,7 +344,7 @@ int sub_handler(mqtt_pck *received_pck, session* running_session){
     }
 
     // Send SUBACK response
-    return return_suback(received_pck, running_session, num_topics);
+    return send_suback(received_pck, running_session, num_topics, topic_qos);
 }
 
 int send_pck(mqtt_pck *package, session* running_session);

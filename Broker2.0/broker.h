@@ -87,7 +87,7 @@ int send_connack(session* running_session, int return_code, int session_present)
 int send_pingresp(mqtt_pck *received_pck);
 
 // Send SUBACK response
-int return_suback(mqtt_pck *received_pck, session *running_session, int num_topics);
+int send_suback(mqtt_pck *received_pck, session *running_session, int num_topics, uint8_t *topic_qos);
 //handle SUBSCRIBE packet
 int sub_handler(mqtt_pck *received_pck, session* running_session);
 
