@@ -16,5 +16,5 @@ mosquitto_sub -h 192.168.1.227 -p 1883 -t "test/topic" -q 1 -i "Node0" -d
 
 Alternative quick connect-conack-publish-puback
 ```
-mosquitto_pub -h 192.168.1.227 -p 1883 -t "test/topic" -m "Hello, broker!" -q 1 -i "Node1" -d
+mosquitto_pub -h 192.168.1.227 -p 1883 -t "test/topic" -m "Hello, broker!" -q 1 -i "Node2" -d
 ```

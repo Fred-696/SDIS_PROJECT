@@ -5,7 +5,7 @@
 #include <pigpio.h>
 #include <mosquitto.h>
 
-#define ADDRESS "192.168.1.227"
+#define DEFAULT_BROKER_ADDRESS "127.0.0.1" // Default broker address
 #define CLIENTID "Node2"
 #define TOPIC "ButtonPress"
 #define PAYLOAD "B1"
@@ -13,6 +13,7 @@
 #define BUTTON_GPIO 14
 
 struct mosquitto *client;
+char *broker_address = DEFAULT_BROKER_ADDRESS;
 
 void on_connect(struct mosquitto *client, void *userdata, int rc) {
     if (rc == 0) {
@@ -26,8 +27,27 @@ void on_publish(struct mosquitto *client, void *userdata, int mid) {
     printf("Message published (mid=%d).\n", mid);
 }
 
+void print_usage() {
+    printf("Usage: ./node -h <broker_address>\n");
+}
+
 int main(int argc, char *argv[]) {
     int rc;
+    int opt;
+
+    // Parse command-line arguments
+    while ((opt = getopt(argc, argv, "h:")) != -1) {
+        switch (opt) {
+            case 'h':
+                broker_address = optarg;
+                break;
+            default:
+                print_usage();
+                return EXIT_FAILURE;
+        }
+    }
+
+    printf("Using broker address: %s\n", broker_address);
 
     // Initialize pigpio
     if (gpioInitialise() < 0) {
@@ -49,9 +69,9 @@ int main(int argc, char *argv[]) {
     mosquitto_connect_callback_set(client, on_connect);
     mosquitto_publish_callback_set(client, on_publish);
 
-    // Connect to the broker
-    if (mosquitto_connect(client, ADDRESS, 1883, 20) != MOSQ_ERR_SUCCESS) {
-        fprintf(stderr, "Failed to connect to broker.\n");
+    // Connect to the broker using the provided or default address
+    if (mosquitto_connect(client, broker_address, 1883, 20) != MOSQ_ERR_SUCCESS) {
+        fprintf(stderr, "Failed to connect to broker %s.\n", broker_address);
         mosquitto_destroy(client);
         mosquitto_lib_cleanup();
         return EXIT_FAILURE;
