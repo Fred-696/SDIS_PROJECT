@@ -20,18 +20,17 @@ char *broker_address = DEFAULT_BROKER_ADDRESS;
 void on_connect(struct mosquitto *client, void *userdata, int rc) {
     if (rc == 0) {
         printf("Connected to MQTT broker.\n");
-        // Subscribe to both topics upon connection
-        mosquitto_subscribe(client, NULL, TOPIC1, QOS);
-        mosquitto_subscribe(client, NULL, TOPIC2, QOS);
-        printf("Subscribed to topics: %s, %s\n", TOPIC1, TOPIC2);
+        mosquitto_subscribe(client, NULL, TOPIC2, QOS); // Subscribe to test/topic on connection
     } else {
         fprintf(stderr, "Connection failed with code %d.\n", rc);
     }
 }
 
-// MQTT message callback
+// MQTT message callback for receiving messages on test/topic
 void on_message(struct mosquitto *client, void *userdata, const struct mosquitto_message *message) {
-    printf("Message received on topic '%s': %s\n", message->topic, (char *)message->payload);
+    if (message->payloadlen > 0) {
+        printf("Message received on '%s': %s\n", message->topic, (char *)message->payload);
+    }
 }
 
 // MQTT publish callback
@@ -39,7 +38,7 @@ void on_publish(struct mosquitto *client, void *userdata, int mid) {
     printf("Message published (mid=%d).\n", mid);
 }
 
-// Print usage function
+// Command line usage
 void print_usage() {
     printf("Usage: ./node -h <broker_address>\n");
 }
@@ -48,7 +47,7 @@ int main(int argc, char *argv[]) {
     int rc;
     int opt;
 
-    // Parse command-line arguments
+    // Parse command-line arguments for broker address
     while ((opt = getopt(argc, argv, "h:")) != -1) {
         switch (opt) {
             case 'h':
@@ -78,12 +77,12 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // Set callbacks
+    // Set callbacks for connection and receiving messages
     mosquitto_connect_callback_set(client, on_connect);
-    mosquitto_message_callback_set(client, on_message);  // Now handles messages from both topics
+    mosquitto_message_callback_set(client, on_message);
     mosquitto_publish_callback_set(client, on_publish);
 
-    // Connect to the broker using the provided or default address
+    // Connect to the broker
     if (mosquitto_connect(client, broker_address, 1883, 20) != MOSQ_ERR_SUCCESS) {
         fprintf(stderr, "Failed to connect to broker %s.\n", broker_address);
         mosquitto_destroy(client);
@@ -91,7 +90,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // Start event loop
+    // Start the event loop
     if (mosquitto_loop_start(client) != MOSQ_ERR_SUCCESS) {
         fprintf(stderr, "Failed to start event loop.\n");
         mosquitto_destroy(client);
@@ -101,7 +100,7 @@ int main(int argc, char *argv[]) {
 
     printf("Monitoring button on GPIO %d...\n", BUTTON_GPIO);
     
-    // Main loop for button press monitoring
+    // Button monitoring loop
     while (1) {
         if (gpioRead(BUTTON_GPIO) == 0) {
             rc = mosquitto_publish(client, NULL, TOPIC1, strlen(PAYLOAD), PAYLOAD, QOS, false);
@@ -115,7 +114,7 @@ int main(int argc, char *argv[]) {
         usleep(10000); // Prevent CPU overload
     }
 
-    // Cleanup (Never reached in this design)
+    // Cleanup
     mosquitto_disconnect(client);
     mosquitto_destroy(client);
     mosquitto_lib_cleanup();
