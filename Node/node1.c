@@ -8,23 +8,46 @@
 #define DEFAULT_BROKER_ADDRESS "127.0.0.1" // Default broker address
 #define CLIENTID "Node2"
 #define TOPIC1 "ButtonPress"
-#define PAYLOAD "B1"
 #define QOS 1
-#define BUTTON_GPIO 14
+
+// LED GPIO Pins
+#define LED_GPIO_1 16
+#define LED_GPIO_2 20
+#define LED_GPIO_3 21
 
 struct mosquitto *client;
 char *broker_address = DEFAULT_BROKER_ADDRESS;
 
+// MQTT connect callback
 void on_connect(struct mosquitto *client, void *userdata, int rc) {
     if (rc == 0) {
         printf("Connected to MQTT broker.\n");
+        mosquitto_subscribe(client, NULL, TOPIC1, QOS); // Subscribe on successful connection
     } else {
         fprintf(stderr, "Connection failed with code %d.\n", rc);
     }
 }
 
-void on_publish(struct mosquitto *client, void *userdata, int mid) {
-    printf("Message published (mid=%d).\n", mid);
+// MQTT message callback
+void on_message(struct mosquitto *client, void *userdata, const struct mosquitto_message *message) {
+    if (message->payloadlen > 0) {
+        printf("Message received: %s\n", (char *)message->payload);
+
+        // LED sequence: Turn on LEDs one by one and then turn them off
+        gpioWrite(LED_GPIO_1, 1);
+        usleep(500000); // Light up for 0.5 seconds
+        gpioWrite(LED_GPIO_1, 0);
+        
+        gpioWrite(LED_GPIO_2, 1);
+        usleep(500000);
+        gpioWrite(LED_GPIO_2, 0);
+        
+        gpioWrite(LED_GPIO_3, 1);
+        usleep(500000);
+        gpioWrite(LED_GPIO_3, 0);
+
+        printf("LED sequence completed.\n");
+    }
 }
 
 void print_usage() {
@@ -54,8 +77,16 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Failed to initialize pigpio\n");
         return EXIT_FAILURE;
     }
-    gpioSetMode(BUTTON_GPIO, PI_INPUT);
-    gpioSetPullUpDown(BUTTON_GPIO, PI_PUD_UP);
+
+    // Set LED GPIOs as output and enable pull-down resistors
+    gpioSetMode(LED_GPIO_1, PI_OUTPUT);
+    gpioSetPullUpDown(LED_GPIO_1, PI_PUD_DOWN);
+    
+    gpioSetMode(LED_GPIO_2, PI_OUTPUT);
+    gpioSetPullUpDown(LED_GPIO_2, PI_PUD_DOWN);
+    
+    gpioSetMode(LED_GPIO_3, PI_OUTPUT);
+    gpioSetPullUpDown(LED_GPIO_3, PI_PUD_DOWN);
 
     // Initialize Mosquitto
     mosquitto_lib_init();
@@ -65,9 +96,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // Set callbacks
+    // Set callbacks for connection and message handling
     mosquitto_connect_callback_set(client, on_connect);
-    mosquitto_publish_callback_set(client, on_publish);
+    mosquitto_message_callback_set(client, on_message);
 
     // Connect to the broker using the provided or default address
     if (mosquitto_connect(client, broker_address, 1883, 20) != MOSQ_ERR_SUCCESS) {
@@ -77,7 +108,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // Start event loop
+    // Start event loop for message handling
     if (mosquitto_loop_start(client) != MOSQ_ERR_SUCCESS) {
         fprintf(stderr, "Failed to start event loop.\n");
         mosquitto_destroy(client);
@@ -85,20 +116,14 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    printf("Monitoring button on GPIO %d...\n", BUTTON_GPIO);
+    printf("Waiting for messages on topic '%s'...\n", TOPIC1);
+
+    // Keep the program running indefinitely
     while (1) {
-        if (gpioRead(BUTTON_GPIO) == 0) {
-            rc = mosquitto_publish(client, NULL, TOPIC1, strlen(PAYLOAD), PAYLOAD, QOS, false);
-            if (rc != MOSQ_ERR_SUCCESS) {
-                fprintf(stderr, "Failed to publish: %s\n", mosquitto_strerror(rc));
-            } else {
-                printf("Button pressed! Message published: %s\n", PAYLOAD);
-            }
-            while (gpioRead(BUTTON_GPIO) == 0) { usleep(5000); } // Debounce
-        }
-        usleep(10000); // Prevent CPU overload
+        sleep(1);
     }
 
+    // Cleanup (this code is never reached in the current design)
     mosquitto_disconnect(client);
     mosquitto_destroy(client);
     mosquitto_lib_cleanup();
