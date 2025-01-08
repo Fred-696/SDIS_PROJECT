@@ -53,7 +53,20 @@ void *client_handler(void *arg) {
         ssize_t valread = read(conn_fd, buffer, BUFFER_SIZE);
         if (valread <= 0) {
             printf("Client disconnected: conn_fd: %d | forcing connection close\n", conn_fd);
+            //find the running session with matching conn_fd
+            session *current_session = NULL;
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (running_sessions[i].conn_fd == conn_fd) {
+                    current_session = &running_sessions[i];
+                    break;
+                }
+            }
+            if (current_session == NULL) {
+                printf("Session not found || couldn't reset conn_fd\n");
+            }
             close(conn_fd);
+            current_session->conn_fd = 0;
+            
             pthread_exit(NULL);
         }
 
@@ -338,6 +351,7 @@ int disconnect_handler(mqtt_pck *received_pck, session* running_sessions){
     printf("DISCONNECTION || conn_fd: %d || Client_ID: '%s'\n", current_session->conn_fd, current_session->client_id);
     current_session->last_pck_received_id = 0; //reset last packet id
     close(current_session->conn_fd);
+    current_session->conn_fd = 0;
     pthread_exit(NULL);
 }
 
@@ -759,14 +773,18 @@ void *queue_handler(void *arg) {
                     continue;
                 }
                 else{ //slot has message
-                    elapsed_time = (double)(time_now - running_sessions[i].pck_to_send[j].time_sent) / CLOCKS_PER_SEC;
-                    if (elapsed_time > TIME_TO_RETRANSMIT){ //if retransmition time has passed
-                        printf("RETRANSMISSIONING->PUBLISH to Client_ID: '%s' || conn_fd: %d || Queue Slot: %d\n", running_sessions[i].client_id, running_sessions[i].conn_fd, j);
-                        if (send_pck(&running_sessions[i].pck_to_send[j]) < 0) {  //send the message
-                            printf("RETRANSMISSIONING FAILURE\n");
-                            continue;
+                    if (running_sessions[i].conn_fd != 0){ //if client is connected
+                        running_sessions[i].pck_to_send[j].conn_fd = running_sessions[i].conn_fd; //in case the reconection got a diferent conn_fd, make sure packet has correct new conn_fd
+
+                        elapsed_time = (double)(time_now - running_sessions[i].pck_to_send[j].time_sent) / CLOCKS_PER_SEC;
+                        if (elapsed_time > TIME_TO_RETRANSMIT){ //if retransmition time has passed
+                            printf("RETRANSMISSIONING->PUBLISH to Client_ID: '%s' || conn_fd: %d || Queue Slot: %d\n", running_sessions[i].client_id, running_sessions[i].conn_fd, j);
+                            if (send_pck(&running_sessions[i].pck_to_send[j]) < 0) {  //send the message
+                                printf("RETRANSMISSIONING FAILURE\n");
+                                continue;
+                            }
+                            running_sessions[i].pck_to_send[j].time_sent = time_now;
                         }
-                        running_sessions[i].pck_to_send[j].time_sent = time_now;
                     }
                 }
             }
