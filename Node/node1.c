@@ -70,7 +70,7 @@ void on_message(struct mosquitto *client, void *userdata, const struct mosquitto
 
         // Increment and cycle through the LED states (0 -> 1 -> 2 -> 3 -> 0)
         leds = (leds + 1) % 4;
-        if (message->topic == TOPIC1){
+        if (strcmp(message->topic, TOPIC1) == 0){
             update_leds();
         }
 
