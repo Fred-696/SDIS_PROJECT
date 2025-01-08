@@ -31,7 +31,4 @@ Figure 1- Diagram of the desired MQTT broker at the end of the project with exam
 
 ################################################################
 
-To implement
-
-CONNACK
-SUBACK
+QoS1 Working
