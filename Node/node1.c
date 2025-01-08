@@ -31,9 +31,33 @@ void on_connect(struct mosquitto *client, void *userdata, int rc) {
 
 // Function to update LEDs based on 'leds' variable
 void update_leds() {
-    gpioWrite(LED_GPIO_1, leds >= 1); // Turn on LED1 if leds >= 1
-    gpioWrite(LED_GPIO_2, leds >= 2); // Turn on LED2 if leds >= 2
-    gpioWrite(LED_GPIO_3, leds == 3); // Turn on LED3 only if leds == 3
+    switch (leds) {
+        case 0:
+            gpioWrite(LED_GPIO_1, 0);
+            gpioWrite(LED_GPIO_2, 0);
+            gpioWrite(LED_GPIO_3, 0);
+            break;
+        case 1:
+            gpioWrite(LED_GPIO_1, 1);
+            gpioWrite(LED_GPIO_2, 0);
+            gpioWrite(LED_GPIO_3, 0);
+            break;
+        case 2:
+            gpioWrite(LED_GPIO_1, 1);
+            gpioWrite(LED_GPIO_2, 1);
+            gpioWrite(LED_GPIO_3, 0);
+            break;
+        case 3:
+            gpioWrite(LED_GPIO_1, 1);
+            gpioWrite(LED_GPIO_2, 1);
+            gpioWrite(LED_GPIO_3, 1);
+            break;
+        default:
+            gpioWrite(LED_GPIO_1, 0);
+            gpioWrite(LED_GPIO_2, 0);
+            gpioWrite(LED_GPIO_3, 0);
+            break;
+    }
 }
 
 // MQTT message callback
@@ -41,10 +65,10 @@ void on_message(struct mosquitto *client, void *userdata, const struct mosquitto
     if (message->payloadlen > 0) {
         printf("Message received: %s\n", (char *)message->payload);
 
-        // Cycle through LED states (0 -> 1 -> 2 -> 3 -> 0)
+        // Increment and cycle through the LED states (0 -> 1 -> 2 -> 3 -> 0)
         leds = (leds + 1) % 4;
 
-        // Update the LEDs based on the current state of 'leds'
+        // Update the LEDs using the switch case
         update_leds();
 
         printf("LEDs state updated to: %d\n", leds);
