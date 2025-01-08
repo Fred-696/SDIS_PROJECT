@@ -9,6 +9,7 @@
 #define CLIENTID "Node2"
 #define TOPIC1 "ButtonPress"
 #define TOPIC2 "test/topic"
+#define TOPIC3 "sensor/temperature"  // New topic for temperature
 #define PAYLOAD "B1"
 #define QOS 1
 #define BUTTON_GPIO 14
@@ -20,13 +21,16 @@ char *broker_address = DEFAULT_BROKER_ADDRESS;
 void on_connect(struct mosquitto *client, void *userdata, int rc) {
     if (rc == 0) {
         printf("Connected to MQTT broker.\n");
-        mosquitto_subscribe(client, NULL, TOPIC2, QOS); // Subscribe to test/topic on connection
+        // Subscribe to both topics on connection
+        mosquitto_subscribe(client, NULL, TOPIC2, QOS);
+        mosquitto_subscribe(client, NULL, TOPIC3, QOS); // Subscribing to the new topic
+        printf("Subscribed to '%s' and '%s'\n", TOPIC2, TOPIC3);
     } else {
         fprintf(stderr, "Connection failed with code %d.\n", rc);
     }
 }
 
-// MQTT message callback for receiving messages on test/topic
+// MQTT message callback for receiving messages on subscribed topics
 void on_message(struct mosquitto *client, void *userdata, const struct mosquitto_message *message) {
     if (message->payloadlen > 0) {
         printf("Message received on '%s': %s\n", message->topic, (char *)message->payload);
@@ -77,7 +81,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // Set callbacks for connection and receiving messages
+    // Set callbacks for connection, message receiving, and publishing
     mosquitto_connect_callback_set(client, on_connect);
     mosquitto_message_callback_set(client, on_message);
     mosquitto_publish_callback_set(client, on_publish);

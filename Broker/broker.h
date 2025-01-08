@@ -23,7 +23,7 @@
 //=============================================================//
 //most of the limitations to our simplified MQTT broker are from the limits here, which could be dynamic but would take more work and memory allocation
 #define BROKER_PORT 1883
-#define MAX_CLIENTS 3
+#define MAX_CLIENTS 10
 #define MAX_TOPICS 5
 #define MAX_PUB_QUEUE_SIZE 10 
 #define TIME_TO_RETRANSMIT 5.0   //time in seconds before retransmission is tried, in case PUBLISH doesnt receive PUBACK

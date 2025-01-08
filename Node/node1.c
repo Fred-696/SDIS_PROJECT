@@ -68,9 +68,9 @@ void on_message(struct mosquitto *client, void *userdata, const struct mosquitto
     if (message->payloadlen > 0) {
         printf("Message received on topic '%s': %s\n", message->topic, (char *)message->payload);
 
-        // Increment and cycle through the LED states (0 -> 1 -> 2 -> 3 -> 0)
-        leds = (leds + 1) % 4;
         if (strcmp(message->topic, TOPIC1) == 0){
+            //increment and cycle through the LED states (0 -> 1 -> 2 -> 3 -> 0)
+            leds = (leds + 1) % 4;  
             update_leds();
         }
 
