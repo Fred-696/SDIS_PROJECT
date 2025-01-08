@@ -8,6 +8,7 @@
 #define DEFAULT_BROKER_ADDRESS "127.0.0.1" // Default broker address
 #define CLIENTID "Node1"
 #define TOPIC1 "ButtonPress"
+#define TOPIC2 "test/topic"
 #define QOS 1
 
 // LED GPIO Pins
@@ -23,13 +24,15 @@ int leds = 0; // Variable to track LED states (0 -> 1 -> 2 -> 3 -> 0 cycle)
 void on_connect(struct mosquitto *client, void *userdata, int rc) {
     if (rc == 0) {
         printf("Connected to MQTT broker.\n");
-        mosquitto_subscribe(client, NULL, TOPIC1, QOS); // Subscribe on successful connection
+        mosquitto_subscribe(client, NULL, TOPIC1, QOS); // Subscribe to TOPIC1
+        mosquitto_subscribe(client, NULL, TOPIC2, QOS); // Subscribe to TOPIC2
+        printf("Subscribed to topics: %s, %s\n", TOPIC1, TOPIC2);
     } else {
         fprintf(stderr, "Connection failed with code %d.\n", rc);
     }
 }
 
-// Function to update LEDs based on 'leds' variable
+// Function to update LEDs based on 'leds' variable using a switch case
 void update_leds() {
     switch (leds) {
         case 0:
@@ -63,12 +66,10 @@ void update_leds() {
 // MQTT message callback
 void on_message(struct mosquitto *client, void *userdata, const struct mosquitto_message *message) {
     if (message->payloadlen > 0) {
-        printf("Message received: %s\n", (char *)message->payload);
+        printf("Message received on topic '%s': %s\n", message->topic, (char *)message->payload);
 
         // Increment and cycle through the LED states (0 -> 1 -> 2 -> 3 -> 0)
         leds = (leds + 1) % 4;
-
-        // Update the LEDs using the switch case
         update_leds();
 
         printf("LEDs state updated to: %d\n", leds);
@@ -140,14 +141,14 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    printf("Waiting for messages on topic '%s'...\n", TOPIC1);
+    printf("Waiting for messages on topics '%s' and '%s'...\n", TOPIC1, TOPIC2);
 
     // Keep the program running indefinitely
     while (1) {
         sleep(1);
     }
 
-    // Cleanup (this code is never reached in the current design)
+    // Cleanup (never reached in this design)
     mosquitto_disconnect(client);
     mosquitto_destroy(client);
     mosquitto_lib_cleanup();
