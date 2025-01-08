@@ -61,6 +61,7 @@ void update_leds() {
             gpioWrite(LED_GPIO_3, 0);
             break;
     }
+    printf("LEDs state updated to: %d\n", leds);
 }
 
 // MQTT message callback
@@ -73,8 +74,6 @@ void on_message(struct mosquitto *client, void *userdata, const struct mosquitto
             leds = (leds + 1) % 4;  
             update_leds();
         }
-
-        printf("LEDs state updated to: %d\n", leds);
     }
 }
 
