@@ -51,6 +51,7 @@ typedef struct {
 
     int pck_id;       //if present, represents the packet id
 
+    int first_forward; //used to know if the message was tried to send once before
     clock_t time_sent; //used to know when to resend publish packet
 
 } mqtt_pck;
