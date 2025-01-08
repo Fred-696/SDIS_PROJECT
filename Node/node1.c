@@ -6,7 +6,7 @@
 #include <mosquitto.h>
 
 #define DEFAULT_BROKER_ADDRESS "127.0.0.1" // Default broker address
-#define CLIENTID "Node2"
+#define CLIENTID "Node1"
 #define TOPIC1 "ButtonPress"
 #define QOS 1
 
