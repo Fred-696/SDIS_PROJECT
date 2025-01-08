@@ -10,6 +10,26 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    //allocate memory for queue thread data
+    thread_data *t_q_data = (thread_data *)malloc(sizeof(thread_data)); //memory size, then cast to needed type
+    if (!t_q_data) {
+        perror("Malloc failed");
+        exit(EXIT_FAILURE);
+    }
+
+    t_q_data->conn_fd = 0;
+    t_q_data->running_sessions = running_sessions;
+
+    //create a new thread for the client
+    pthread_t queue_thread;
+    if (pthread_create(&queue_thread, NULL, queue_handler, (void *)t_q_data) != 0) { //cast to void type
+        perror("Queue Handling Thread creation failed\n");
+        free(t_q_data);
+        exit(EXIT_FAILURE);
+    }
+
+    
+
     while (1) {
         int conn_fd = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
         if (conn_fd < 0) {

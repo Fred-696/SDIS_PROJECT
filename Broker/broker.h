@@ -14,16 +14,19 @@
 
 #include <fcntl.h>
 #include <pthread.h>
+#include <time.h>
 
 #ifndef _ARPA_INET_H_
 #define _ARPA_INET_H_
 
 #endif
 //=============================================================//
-
+//most of the limitations to our simplified MQTT broker are from the limits here, which could be dynamic but would take more work and memory allocation
 #define BROKER_PORT 1883
 #define MAX_CLIENTS 3
 #define MAX_TOPICS 5
+#define MAX_PUB_QUEUE_SIZE 10 
+#define TIME_TO_RETRANSMIT 5.0   //time in seconds before retransmission is tried, in case PUBLISH doesnt receive PUBACK
 #define QOS 1
 
 #define BUFFER_SIZE 1024
@@ -46,18 +49,21 @@ typedef struct {
 
     int conn_fd;                   //connection file descriptor
 
-    int pck_id;
+    int pck_id;       //if present, represents the packet id
+
+    clock_t time_sent; //used to know when to resend publish packet
+
 } mqtt_pck;
 
 //session required arguments to save
 typedef struct {
     int conn_fd;                   //connection file descriptor
-    int keepalive;                //time between finishing 1 package and next package, in seconds
+    int keepalive;                //time between finishing 1 packet and next packet, in seconds
     char topic[MAX_TOPICS][256];  //Client's subscripted topics (at maximum all topics)
 
     char* client_id;
-    int last_pck_received_id; //meger nome igual ao protocolo
-    mqtt_pck pck_to_send;
+    int last_pck_received_id;     //pck id of last received message from this session's client
+    mqtt_pck pck_to_send[MAX_PUB_QUEUE_SIZE]; //queue of publish messages to send to this client
 } session;
 
 //for each thread
@@ -79,28 +85,32 @@ typedef struct {
 int create_tcpserver(int *server_fd, struct sockaddr_in *address, int *addrlen);
 //main loop function, for each thread
 void *client_handler(void *arg);
+//queue loop function, 1 for all threads, responsible for fowarding PUBLISH messages
+void *queue_handler(void *arg);
 //function to decode the remaining length
 int decode_remaining_length(uint8_t *buffer, uint8_t *remaining_length, int *offset);
 //function to encode the remaining length
 int encode_remaining_length(uint8_t *buffer, size_t remaining_len);
-//function to easily made package(only fill a variable of type structure mqtt_pck)
-int send_pck(mqtt_pck *package);
+//function to easily made packet(only fill a variable of type structure mqtt_pck)
+int send_pck(mqtt_pck *packet);
 //determine type of packet and process
 int mqtt_process_pck(uint8_t *buffer, mqtt_pck received_pck, session* running_sessions);
 //disconnects client properly
 int disconnect_handler(mqtt_pck *received_pck, session* running_sessions);
 //handle(interprets) CONNECT packet
 int connect_handler(mqtt_pck *received_pck, session* running_sessions);
-//Prepares and sends connack package
+//Prepares and sends connack packet
 int send_connack(session* current_session, int return_code, int session_present);
-//Sends PingResp package(no need for handler before)
+//Sends PingResp packet(no need for handler before)
 int send_pingresp(mqtt_pck *received_pck);
 //handle(interprets) PUBISH packet
 int publish_handler(mqtt_pck *received_pck, session* running_sessions);
-//send publish
-int send_publish(mqtt_pck *received_pck, session* running_session);
 //send puback
 int send_puback(session* current_session, int pck_id);
+//handle PUBACK response
+int puback_handler(mqtt_pck *received_pck, session* running_sessions);
+//queue publish
+int queue_publish(mqtt_pck *received_pck, session* running_session);
 //handle SUBSCRIBE packet
 int subscribe_handler(mqtt_pck *received_pck, session* running_sessions);
 //send SUBACK response

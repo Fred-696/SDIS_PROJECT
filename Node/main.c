@@ -7,7 +7,7 @@
 
 #define DEFAULT_BROKER_ADDRESS "127.0.0.1" // Default broker address
 #define CLIENTID "Node2"
-#define TOPIC "ButtonPress"
+#define TOPIC1 "ButtonPress"
 #define PAYLOAD "B1"
 #define QOS 1
 #define BUTTON_GPIO 14
@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
     printf("Monitoring button on GPIO %d...\n", BUTTON_GPIO);
     while (1) {
         if (gpioRead(BUTTON_GPIO) == 0) {
-            rc = mosquitto_publish(client, NULL, TOPIC, strlen(PAYLOAD), PAYLOAD, QOS, false);
+            rc = mosquitto_publish(client, NULL, TOPIC1, strlen(PAYLOAD), PAYLOAD, QOS, false);
             if (rc != MOSQ_ERR_SUCCESS) {
                 fprintf(stderr, "Failed to publish: %s\n", mosquitto_strerror(rc));
             } else {
