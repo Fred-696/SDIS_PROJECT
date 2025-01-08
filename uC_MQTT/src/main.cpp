@@ -1,104 +1,93 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <PubSubClient.h>
+#include <AsyncMqttClient.h>
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
 
 // Wi-Fi settings
-const char* ssid =  "Vodafone-BA4038";            //"Xiaomi Fred";                //"Vodafone-C27E8D";
-const char* password = "yGDfVSD2yZ";
+const char* ssid =  "Vodafone-C27E8D"; //"Vodafone-BA4038";            //"Xiaomi Fred";                //"Vodafone-C27E8D";
+const char* password = "agrandefamilia"; //"yGDfVSD2yZ"  //123456789;
 
 // MQTT settings
-const char* mqtt_server = "192.168.1.85"; // Replace with your broker's IP
+const char* clientID = "Node3";
+const char* mqtt_server = "192.168.1.114"; // Replace with your broker's IP
 const char* mqtt_topic_pub = "sensor/temperature";
 const char* mqtt_topic_sub = "test/topic";
 
-WiFiClient espClient;
-PubSubClient client(espClient);
+#define PORT 1883
+#define QOS 1
 
-// Function to connect to Wi-Fi
-void setup_wifi() {
-    delay(10);
+
+// Define pins for BME280
+#define BME_SCL 22
+#define BME_SDA 21
+
+AsyncMqttClient mqttClient;
+Adafruit_BME280 bme; // Create an instance of the BME280 sensor
+
+void connectToWifi() {
     Serial.println("Connecting to Wi-Fi...");
     WiFi.begin(ssid, password);
-
-    int retries = 0;
     while (WiFi.status() != WL_CONNECTED) {
         delay(1000);
         Serial.print(".");
-        retries++;
-        if (retries > 20) { // Timeout after 20 seconds
-            Serial.println("\nFailed to connect to Wi-Fi. Restarting...");
-            ESP.restart();
-        }
     }
     Serial.println("\nWi-Fi connected.");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 }
 
-// Callback for received MQTT messages
-void callback(char* topic, byte* payload, unsigned int length) {
+void onMqttConnect(bool sessionPresent) {
+    Serial.println("Connected to MQTT broker.");
+    mqttClient.subscribe(mqtt_topic_sub, QOS);
+    Serial.print("Subscribed to topic: ");
+    Serial.println(mqtt_topic_sub);
+}
+
+void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
     Serial.print("Message received on topic: ");
     Serial.println(topic);
-
     Serial.print("Message: ");
-    for (unsigned int i = 0; i < length; i++) {
+    for (size_t i = 0; i < len; i++) {
         Serial.print((char)payload[i]);
     }
-    
     Serial.println();
 }
 
-// Function to connect to the MQTT broker
-void reconnect() {
-    // Ensure Wi-Fi is connected
-    if (WiFi.status() != WL_CONNECTED) {
-        setup_wifi();
-    }
-
-    while (!client.connected()) {
-        Serial.println("Attempting MQTT connection...");
-        if (client.connect("ESP32Client")) { // Use a unique client ID
-            Serial.println("Connected to MQTT broker.");
-            client.subscribe(mqtt_topic_sub); // Subscribe to the topic
-            Serial.print("Subscribed to topic: ");
-            Serial.println(mqtt_topic_sub);
-        } else {
-            Serial.print("Failed to connect to broker, rc=");
-            Serial.print(client.state());
-            Serial.println(". Retrying in 5 seconds...");
-            delay(5000);
-        }
-    }
-}
-
-// Setup function
 void setup() {
     Serial.begin(115200);
-    setup_wifi();
+    connectToWifi();
 
-    client.setServer(mqtt_server, 1883); // Configure MQTT broker
-    client.setCallback(callback); // Set the callback for incoming messages
+    mqttClient.onConnect(onMqttConnect);
+    mqttClient.onMessage(onMqttMessage);
+    mqttClient.setServer(mqtt_server, PORT);
+
+    Wire.begin(BME_SDA, BME_SCL); // Initialize I2C with defined pins
+    if (!bme.begin(0x76)) { // Initialize the BME280 sensor (address 0x76)
+        Serial.println("Could not find a valid BME280 sensor, check wiring!");
+        while (1);
+    }
+
+    // Set up client ID
+    mqttClient.setClientId(clientID);
+
+    mqttClient.connect();
 }
 
-// Main loop
 void loop() {
-    if (!client.connected()) {
-        reconnect();
-    }
-    client.loop();
-
     // Publish a temperature value every 5 seconds
     static unsigned long lastTime = 0;
-    if (millis() - lastTime > 5000) {
+    if (millis() - lastTime > 2000) {
         lastTime = millis();
 
-        // Simulate a temperature reading
-        float temperature = 25.0 + (rand() % 100) / 10.0; // Random temperature between 25.0 and 35.0
+        // Read temperature from BME280 sensor
+        float temperature = bme.readTemperature();
         char tempString[8];
         dtostrf(temperature, 6, 2, tempString); // Convert float to string
 
         Serial.print("Publishing temperature: ");
         Serial.println(tempString);
-        client.publish(mqtt_topic_pub, tempString); // Publish temperature to MQTT
+        mqttClient.publish(mqtt_topic_pub, QOS, false, tempString); // Publish temperature to MQTT with QoS 1
     }
 }
