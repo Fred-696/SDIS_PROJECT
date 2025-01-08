@@ -10,6 +10,7 @@ const char* ssid =  "Vodafone-C27E8D"; //"Vodafone-BA4038";            //"Xiaomi
 const char* password = "agrandefamilia"; //"yGDfVSD2yZ"  //123456789;
 
 // MQTT settings
+const char* clientID = "Node3";
 const char* mqtt_server = "192.168.1.114"; // Replace with your broker's IP
 const char* mqtt_topic_pub = "sensor/temperature";
 const char* mqtt_topic_sub = "test/topic";
@@ -67,6 +68,9 @@ void setup() {
         Serial.println("Could not find a valid BME280 sensor, check wiring!");
         while (1);
     }
+
+    // Set up client ID
+    mqttClient.setClientId(clientID);
 
     mqttClient.connect();
 }
