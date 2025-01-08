@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Werror -fpic
+CFLAGS = -Wall -fpic
 LDLIBS = -lmosquitto -lpigpio -lpthread
 SOURCES = $(wildcard node*.c)
 OBJECTS = $(SOURCES:.c=.o)
