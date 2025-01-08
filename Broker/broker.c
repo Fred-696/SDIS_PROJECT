@@ -508,7 +508,7 @@ int subscribe_handler(mqtt_pck *received_pck, session *running_sessions) {
         for (int i = 0; i < MAX_TOPICS; i++) {
             if (strcmp(current_session->topic[i], topic) == 0) {
                 topic_exists = true;
-                printf("Topic '%s' already exists in the session\n", topic);
+                printf("Topic '%s' already exists in the session with conn_fd: %d\n", topic, current_session->conn_fd);
                 break;
             }
         }
@@ -519,7 +519,7 @@ int subscribe_handler(mqtt_pck *received_pck, session *running_sessions) {
                 if (current_session->topic[i][0] == '\0') { //empty topic slot found
                     strncpy(current_session->topic[i], topic, sizeof(current_session->topic[i]) - 1);
                     current_session->topic[i][sizeof(current_session->topic[i]) - 1] = '\0';  //ensure null termination
-                    printf("Stored new topic: '%s' in the session\n", topic);
+                    printf("Stored new topic: '%s' in the session with conn_fd: %d\n", topic, current_session->conn_fd);
                     break;
                 }
             }
