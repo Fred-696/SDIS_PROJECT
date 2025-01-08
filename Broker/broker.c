@@ -168,7 +168,7 @@ int send_pck(mqtt_pck *packet) {
     packet->time_sent = clock(); //only truly used in the case of PUBLISH packet, where it might need to retransmit
     //clean up
     free(buffer);
-    printf("Packet sent to conn_fd %d || ", packet->conn_fd);
+    printf("Packet sent to conn_fd %d\n", packet->conn_fd);
     return 0;
 }
 
@@ -508,7 +508,7 @@ int subscribe_handler(mqtt_pck *received_pck, session *running_sessions) {
         for (int i = 0; i < MAX_TOPICS; i++) {
             if (strcmp(current_session->topic[i], topic) == 0) {
                 topic_exists = true;
-                printf("Topic '%s' already exists in the session\n", topic);
+                printf("Topic '%s' already exists in the session with conn_fd: %d in topic_id: %d\n", topic, current_session->conn_fd, i);
                 break;
             }
         }
@@ -519,7 +519,7 @@ int subscribe_handler(mqtt_pck *received_pck, session *running_sessions) {
                 if (current_session->topic[i][0] == '\0') { //empty topic slot found
                     strncpy(current_session->topic[i], topic, sizeof(current_session->topic[i]) - 1);
                     current_session->topic[i][sizeof(current_session->topic[i]) - 1] = '\0';  //ensure null termination
-                    printf("Stored new topic: '%s' in the session\n", topic);
+                    printf("Stored new topic: '%s' in the session with conn_fd: %d in topic_id: %d\n", topic, current_session->conn_fd, i);
                     break;
                 }
             }
@@ -649,6 +649,7 @@ int publish_handler(mqtt_pck *received_pck, session* running_sessions) {
 }
 
 int send_puback(session* current_session, int pck_id){
+    printf("Sending PUBACK to conn_fd %d\n", current_session->conn_fd);
     mqtt_pck puback_packet;
 
     //fixed Header
@@ -727,15 +728,11 @@ int queue_publish(mqtt_pck *received_pck, session* running_session) {
 
             printf("Queue Slot: %d\n", i);
 
-            printf("FOWARD PUBLISH to Client || \n");
+            printf("FOWARDING PUBLISH to Client\n");
             if (send_pck(&running_session->pck_to_send[i]) < 0) {  //first attempt to send the message; queue thread will resend if not sucessfull
-                printf("FAILURE\n");
+                printf("FOWARD FAILURE\n");
             }
-            else{
-                
-                printf("SUCESS\n");
-            }
-
+            running_session->pck_to_send[i].first_forward = 1;
             return 0;
         }
     }
@@ -758,19 +755,16 @@ void *queue_handler(void *arg) {
         time_now = clock();
         for (int i=0; i < MAX_CLIENTS; i++){ //for each possible session
             for (int j=0; j < MAX_PUB_QUEUE_SIZE; j++){ //for each queue slot
-                if (running_sessions[i].pck_to_send[j].pck_type == 0 ){ //if slot empty, continue
+                if (running_sessions[i].pck_to_send[j].first_forward == 0 ){ //if message hasn't been sent first
                     continue;
                 }
                 else{ //slot has message
                     elapsed_time = (double)(time_now - running_sessions[i].pck_to_send[j].time_sent) / CLOCKS_PER_SEC;
                     if (elapsed_time > TIME_TO_RETRANSMIT){ //if retransmition time has passed
-                        printf("RETRANSMISSION->PUBLISH to Client_ID: '%s' || conn_fd: %d || Queue Slot: %d || ", running_sessions[i].client_id, running_sessions[i].conn_fd, j);
+                        printf("RETRANSMISSIONING->PUBLISH to Client_ID: '%s' || conn_fd: %d || Queue Slot: %d\n", running_sessions[i].client_id, running_sessions[i].conn_fd, j);
                         if (send_pck(&running_sessions[i].pck_to_send[j]) < 0) {  //send the message
-                            printf("FAILURE\n");
+                            printf("RETRANSMISSIONING FAILURE\n");
                             continue;
-                        }
-                        else{
-                            printf("SUCESS\n");
                         }
                         running_sessions[i].pck_to_send[j].time_sent = time_now;
                     }

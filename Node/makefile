@@ -1,10 +1,19 @@
-all: mqtt_node
+CC = gcc
+CFLAGS = -Wall -fpic
+LDLIBS = -lmosquitto -lpigpio -lpthread
+SOURCES = $(wildcard node*.c)
+OBJECTS = $(SOURCES:.c=.o)
+EXECUTABLES = $(SOURCES:.c=)
+
+all: $(EXECUTABLES)
+
+# Rule to create each executable from its respective .o file
+$(EXECUTABLES): %: %.o
+	$(CC) -o $@ $< $(LDLIBS)
+
+# Rule to create object files from .c files
+%.o: %.c
+	$(CC) $(CFLAGS) -c $<
 
 clean:
-		rm -f *.o mqtt_node
-
-mqtt_node: main.o
-		gcc -o $@ main.o -lmosquitto -lpigpio -lpthread
-
-%.o: %.c
-		gcc -c -Wall -fpic $^
+	rm -f $(OBJECTS) $(EXECUTABLES)
