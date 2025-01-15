@@ -21,7 +21,7 @@ qos = args.QoS
 
 # Function to create a client
 def create_client(client_id, subscribe_topic, publish_topic):
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id)
 
     def on_connect(client, userdata, flags, rc, properties=None):
         print(f"{client_id} connected with result code {rc}")
@@ -71,7 +71,7 @@ def perform_test():
     global start_time, test_count
     if test_count < num_tests:
         start_time = time.time()
-        clients[0].publish("topic1", "1")
+        clients[0].publish("topic1", "1",qos)
         test_count += 1
     else:
         print(f"All {test_count} tests completed")
