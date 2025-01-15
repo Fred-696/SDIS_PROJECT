@@ -8,7 +8,9 @@ Run code with necessary arguments:
 
 
 ```
-python3 RingTest.py <ip> <port> <N> <num_tests>
+python3 RingTest.py <ip> <port> <QoS> <N> <num_tests>
+
+python3 SpreadTest.py <ip> <port> <QoS> <N> <num_tests>
 ```
 
 

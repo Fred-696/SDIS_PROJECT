@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser(description='Round trip test with MQTT.')
 parser.add_argument('ip', type=str, help='MQTT broker IP address')
 parser.add_argument('port', type=int, help='MQTT broker port')
 parser.add_argument('QoS', type=int, choices=[0, 1, 2], help='MQTT Quality of Service level: 0, 1, or 2')
-parser.add_argument('N', type=int, help='Number of clients')
+parser.add_argument('N', type=int, help='Number of clients -> max 250')
 parser.add_argument('num_tests', type=int, help='Number of tests to perform')
 args = parser.parse_args()
 
@@ -37,7 +37,7 @@ def create_client(client_id, is_publisher=False):
             with received_lock:
                 if received_count < N:
                     received_count += 1
-                    print(f"{client_id} received fire message. Total received: {received_count}")
+                    #print(f"{client_id} received fire message. Total received: {received_count}")
 
     client.on_connect = on_connect
     client.on_message = on_message
@@ -67,13 +67,15 @@ for client in clients:
 # Function to perform a test
 def perform_test():
     global start_time, test_count, received_count
-    if test_count <= num_tests:
+    if test_count < num_tests:
         start_time = time.time()
         with received_lock:
             received_count = 0
         publisher_client.publish("fire", "1", qos)
-        print(f"Test {test_count + 1} started")
+        #print(f"Test {test_count + 1} started")
         test_count += 1
+        #print(f"perform_test: test_count={test_count}, received_count={received_count}")
+    
 
 # Thread to monitor the received count and print the elapsed time
 def monitor_received_count():
@@ -84,9 +86,16 @@ def monitor_received_count():
                 end_time = time.time()
                 elapsed_time = end_time - start_time
                 print(f"Total round trip time for test {test_count}: {elapsed_time} seconds")
+                #print(f"monitor_received_count (end of test): test_count={test_count}, received_count={received_count}")
                 if test_count < num_tests:
+                    # Release the lock before calling perform_test
+                    received_lock.release()
                     perform_test()
-
+                    # Reacquire the lock after calling perform_test
+                    received_lock.acquire()
+                else:
+                    print(f"All {test_count} tests completed")
+                    break  # Exit the loop after the last test
 # Initialize test count
 test_count = 0
 
