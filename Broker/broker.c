@@ -384,7 +384,7 @@ int connect_handler(mqtt_pck *received_pck, session* running_sessions){
         if (running_sessions[i].client_id != NULL) {
             //compare existing session client_id with the received client_id
             if (strcmp(running_sessions[i].client_id, client_id) == 0) {
-                printf("Ongoing session found for Client_ID: %s at index %d\n", client_id, i);
+                printf("Ongoing session found for Client_ID: %s || conn_fd: %d || index %d\n", running_sessions[i].client_id, running_sessions[i].conn_fd, i);
                 session_idx = i;
                 session_present = 1; // Mark session as present
                 break;
