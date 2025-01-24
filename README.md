@@ -1,5 +1,5 @@
 # SDIS_PROJECT
-Implementation of MQTT and CoAP
+Implementation of MQTT
 
 Authors: Cesar Junior and Frederico Ramos
 The objective of this work is to develop a MQTT Broker, applying the concepts studied in the Distributed Systems course. Following the theoretical approach, a practical implementation will be carried out, allowing for the exploration of the broker's operation in the pub/sub model and message management. 
