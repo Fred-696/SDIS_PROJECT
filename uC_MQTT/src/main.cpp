@@ -6,8 +6,8 @@
 #include <Adafruit_BME280.h>
 
 // Wi-Fi settings
-const char* ssid =  "Vodafone-C27E8D"; //"Vodafone-BA4038";            //"Xiaomi Fred";                //"Vodafone-C27E8D";
-const char* password = "agrandefamilia"; //"yGDfVSD2yZ"  //123456789;
+const char* ssid =  "WiFi ssid"
+const char* password = "pass"
 
 // MQTT settings
 const char* clientID = "Node3";
